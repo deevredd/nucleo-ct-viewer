@@ -202,13 +202,16 @@ class NucleoApiClient:
                     "details": {}
                 }
             except Exception as e:
+                err_text = str(e).strip()
+                if not err_text:
+                    err_text = f"Connection closed by server ({type(e).__name__}). Likely exceeded the 60s upload body time limit over slow uplink."
                 return {
                     "success": False,
                     "status_code": 500,
                     "code": "network_error",
                     "reason": "client_exception",
-                    "user_message": f"Network or connection error: {str(e)}",
-                    "raw_message": str(e),
+                    "user_message": f"Network or connection error: {err_text}",
+                    "raw_message": str(e) or type(e).__name__,
                     "details": {}
                 }
 

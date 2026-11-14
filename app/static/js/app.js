@@ -350,6 +350,12 @@ function setActiveJob(jobId) {
       job.progress_message,
       job.retry_wait_s
     );
+  } else if (job.error && job.status === "completed") {
+    showError(
+      "Live Network Uplink Note",
+      job.progress_message,
+      0
+    );
   } else {
     hideError();
   }
@@ -424,11 +430,11 @@ function renderModelStructureControls(job) {
 function updateMetricsDisplay(job) {
   if (job.status !== "completed" || !job.metrics) {
     metricDiceVal.textContent = "--";
-    metricDicePct.textContent = "--%";
+    metricDicePct.textContent = job.status === "failed" ? "Failed" : "--%";
     metricDiceBar.style.width = "0%";
-    gridStatusBadge.textContent = "Grid: Pending";
+    gridStatusBadge.textContent = job.status === "failed" ? "Upload Failed" : "Grid: Pending";
     gridStatusBadge.className = "hero-badge";
-    gridCheckDetails.textContent = "Metrics will display upon completed upload.";
+    gridCheckDetails.textContent = job.error ? (job.error.user_message || "Upload failed. Click a completed job in the Upload Jobs list below.") : "Metrics will display upon completed upload.";
     return;
   }
 

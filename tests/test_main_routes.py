@@ -28,7 +28,8 @@ def test_api_routes_end_to_end():
         assert res_px.status_code == 200
         assert "hu" in res_px.json()
 
-        # Jobs listing
+        # Jobs listing after demo load
+        client.post("/api/segmentations/demo-cached")
         res_jobs = client.get("/api/jobs")
         assert res_jobs.status_code == 200
         jobs = res_jobs.json()

@@ -38,41 +38,6 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             print(f"Warning: Failed to load reference mask: {e}")
 
-    # If cached model mask is available, pre-load as a reference job for immediate inspection
-    if settings.cached_model_nii.exists():
-        try:
-            cached_mask = NiftiMask.from_file(
-                settings.cached_model_nii,
-                name="lesions",
-                color=(245, 158, 11, 140)
-            )
-            job = job_manager.create_job(label="case-001 (initial/cached)")
-            grid_check = None
-            metrics = None
-            if reference_mask.is_loaded:
-                grid_check = check_grid_compatibility(
-                    shape1=reference_mask.shape,
-                    shape2=cached_mask.shape,
-                    affine1=reference_mask.affine,
-                    affine2=cached_mask.affine
-                )
-                if grid_check["is_compatible"]:
-                    metrics = compute_metrics(
-                        reference_mask=reference_mask.data,
-                        model_mask=cached_mask.data,
-                        spacing_mm=reference_mask.spacing
-                    )
-            job.set_completed(
-                case_id="case-001",
-                structures=[{"name": "lesions", "url": "/v1/cases/case-001/structures/lesions"}],
-                masks={"lesions": cached_mask},
-                metrics=metrics,
-                grid_check=grid_check
-            )
-            print("Loaded initial model mask into job registry.")
-        except Exception as e:
-            print(f"Warning: Could not pre-load cached mask: {e}")
-
     yield
 
 app = FastAPI(title="Nucleo OmniLesion CT Viewer", version="1.0.0", lifespan=lifespan)
