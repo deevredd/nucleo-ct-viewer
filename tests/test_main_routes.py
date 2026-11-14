@@ -41,3 +41,8 @@ def test_api_routes_end_to_end():
         res_diff = client.get(f"/api/jobs/{job_id}/diff_slice/90")
         assert res_diff.status_code == 200
         assert res_diff.content[:8] == b'\x89PNG\r\n\x1a\n'
+
+        # Delete jobs
+        res_del = client.delete("/api/jobs")
+        assert res_del.status_code == 200
+        assert len(client.get("/api/jobs").json()) == 0

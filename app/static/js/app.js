@@ -912,6 +912,20 @@ function setupEventListeners() {
     });
   }
 
+  // Clear Jobs History
+  const btnClearJobs = document.getElementById("btn-clear-jobs");
+  if (btnClearJobs) {
+    btnClearJobs.addEventListener("click", async () => {
+      await fetch("/api/jobs", { method: "DELETE" });
+      state.jobs = [];
+      state.activeJobId = null;
+      hideError();
+      renderJobsList([]);
+      updateMetricsDisplay(null);
+      renderCurrentSlice();
+    });
+  }
+
   // Settings Modal
   btnOpenSettings.addEventListener("click", () => {
     settingsModal.classList.remove("hidden");

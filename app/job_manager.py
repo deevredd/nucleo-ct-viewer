@@ -99,6 +99,9 @@ class JobManager:
         sorted_jobs = sorted(self.jobs.values(), key=lambda j: j.created_at, reverse=True)
         return [j.to_dict() for j in sorted_jobs]
 
+    def clear_jobs(self):
+        self.jobs.clear()
+
     async def execute_upload_job(
         self,
         job_id: str,

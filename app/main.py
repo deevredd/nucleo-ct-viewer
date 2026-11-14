@@ -300,6 +300,11 @@ async def create_demo_cached_job():
 async def list_jobs():
     return job_manager.list_jobs()
 
+@app.delete("/api/jobs")
+async def clear_all_jobs():
+    job_manager.clear_jobs()
+    return {"status": "cleared"}
+
 @app.get("/api/jobs/{job_id}")
 async def get_job_status(job_id: str):
     job = job_manager.get_job(job_id)
