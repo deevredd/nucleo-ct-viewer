@@ -1,4 +1,5 @@
 import io
+import gzip
 from pathlib import Path
 from typing import Dict, Any, Optional, Tuple
 import numpy as np
@@ -33,7 +34,10 @@ class NiftiMask:
         self._init_from_nib(img)
 
     def load_bytes(self, raw_bytes: bytes):
-        # Load from in-memory gzip bytes
+        # The API returns a .nii.gz file (gzip-compressed NIfTI)
+        # Decompress gzip stream so nibabel reads the uncompressed NIfTI header
+        if raw_bytes.startswith(b'\x1f\x8b'):
+            raw_bytes = gzip.decompress(raw_bytes)
         fh = nib.FileHolder(fileobj=io.BytesIO(raw_bytes))
         img = nib.Nifti1Image.from_file_map({'header': fh, 'image': fh})
         self._init_from_nib(img)
