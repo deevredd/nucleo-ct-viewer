@@ -41,7 +41,8 @@ ERROR_TRANSLATIONS = {
     
     ("rate_limited", None): "API rate limit reached. The system is automatically retrying after backing off.",
     ("unavailable", None): "The segmentation model service is currently saturated. Automatically backing off and retrying.",
-    ("internal", None): "Internal server error occurred on the segmentation backend. Please retry shortly."
+    ("internal", None): "Internal server error occurred on the segmentation backend. Please retry shortly.",
+    ("network_error", None): "Unable to connect to the OmniLesion API server. Please check your network connection or verify the endpoint URL in Settings."
 }
 
 def translate_error(code: str, reason: Optional[str] = None, fallback_msg: str = "") -> str:
@@ -201,17 +202,25 @@ class NucleoApiClient:
                     "raw_message": "Network request timed out",
                     "details": {}
                 }
+            except (httpx.ConnectError, httpx.NetworkError):
+                return {
+                    "success": False,
+                    "status_code": 503,
+                    "code": "network_error",
+                    "reason": "connection_failed",
+                    "user_message": translate_error("network_error", None),
+                    "raw_message": "Failed to connect to the OmniLesion API server (Network / DNS unreachable)",
+                    "details": {}
+                }
             except Exception as e:
                 err_text = str(e).strip()
-                if not err_text:
-                    err_text = f"Connection closed by server ({type(e).__name__}). Likely exceeded the 60s upload body time limit over slow uplink."
                 return {
                     "success": False,
                     "status_code": 500,
                     "code": "network_error",
                     "reason": "client_exception",
-                    "user_message": f"Network or connection error: {err_text}",
-                    "raw_message": str(e) or type(e).__name__,
+                    "user_message": translate_error("network_error", None),
+                    "raw_message": err_text or type(e).__name__,
                     "details": {}
                 }
 
