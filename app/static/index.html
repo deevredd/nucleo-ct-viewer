@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Nucleo OmniLesion CT Viewer</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Top Header -->
+    <header class="app-header">
+      <div class="header-left">
+        <div class="logo-mark">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"></path>
+            <path d="M2 12h20"></path>
+          </svg>
+        </div>
+        <div class="title-group">
+          <h1>Nucleo OmniLesion</h1>
+          <span class="badge">FLARE 2026 Winner Pan-Cancer Model</span>
+        </div>
+      </div>
+
+      <div class="header-center">
+        <div class="study-pill">
+          <span class="dot live"></span>
+          <span id="case-title">Case-001 &bull; CT Abdomen</span>
+          <span class="slice-count" id="header-slice-count">180 slices</span>
+        </div>
+      </div>
+
+      <div class="header-right">
+        <button class="btn btn-secondary btn-sm" id="btn-demo-cached" title="Instantly load pre-calculated model mask for case-001">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
+          Quick Demo
+        </button>
+        <button class="btn btn-primary btn-sm" id="btn-upload-trigger">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+          Run OmniLesion API
+        </button>
+        <button class="btn btn-icon btn-sm" id="btn-open-settings" title="API Configuration">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Error / Status Notification Banner -->
+    <div id="error-banner" class="error-banner hidden">
+      <div class="banner-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+      </div>
+      <div class="banner-body">
+        <div class="banner-title" id="banner-title">Error Notification</div>
+        <div class="banner-desc" id="banner-desc">Plain language explanation will appear here.</div>
+      </div>
+      <div class="banner-actions">
+        <span class="retry-timer hidden" id="banner-retry-timer">Retrying in <b id="retry-seconds">5</b>s</span>
+        <button class="btn btn-ghost btn-sm" id="banner-dismiss">&times;</button>
+      </div>
+    </div>
+
+    <!-- Main Workspace -->
+    <div class="app-workspace">
+      <!-- Left Panel: Controls, Presets, Overlays -->
+      <aside class="panel left-panel">
+        <div class="panel-section">
+          <div class="section-title">
+            <span>Segmentation Overlays</span>
+            <span class="subtext">Compare masks</span>
+          </div>
+
+          <!-- Reference Mask Control -->
+          <div class="mask-card reference-card">
+            <div class="card-header">
+              <label class="switch-container">
+                <input type="checkbox" id="toggle-ref-mask" checked>
+                <span class="switch-slider"></span>
+              </label>
+              <div class="card-title-group">
+                <div class="color-indicator ref-indicator"></div>
+                <span class="mask-name">Reference (Ground Truth)</span>
+              </div>
+            </div>
+            <div class="card-details">
+              <div class="control-row">
+                <span class="control-label">Opacity</span>
+                <input type="range" id="opacity-ref-mask" min="0" max="100" value="55" class="slider-sm">
+                <span class="val-display" id="val-ref-opacity">55%</span>
+              </div>
+              <div class="volume-stat">
+                <span>Volume:</span>
+                <b id="ref-volume-text">147.3 cm³</b>
+              </div>
+            </div>
+          </div>
+
+          <!-- Dynamic Model Structures Container -->
+          <div id="model-structures-container">
+            <!-- Dynamically populated per structure -->
+          </div>
+        </div>
+
+        <!-- Window / Level Controls -->
+        <div class="panel-section">
+          <div class="section-title">
+            <span>CT Windowing</span>
+            <span class="subtext" id="active-preset-label">Soft Tissue</span>
+          </div>
+
+          <!-- Presets Grid -->
+          <div class="preset-grid">
+            <button class="preset-btn active" data-preset="soft_tissue">Soft Tissue</button>
+            <button class="preset-btn" data-preset="liver">Liver</button>
+            <button class="preset-btn" data-preset="abdomen">Abdomen</button>
+            <button class="preset-btn" data-preset="lung">Lung</button>
+            <button class="preset-btn" data-preset="bone">Bone</button>
+            <button class="preset-btn" data-preset="brain">Brain</button>
+          </div>
+
+          <!-- Custom Window / Level Sliders -->
+          <div class="slider-group">
+            <div class="slider-header">
+              <span>Window Width (W)</span>
+              <span class="slider-val" id="val-window-width">400</span>
+            </div>
+            <input type="range" id="slider-window-width" min="1" max="2500" value="400" class="slider">
+          </div>
+
+          <div class="slider-group">
+            <div class="slider-header">
+              <span>Window Level (L)</span>
+              <span class="slider-val" id="val-window-level">40</span>
+            </div>
+            <input type="range" id="slider-window-level" min="-1000" max="1000" value="40" class="slider">
+          </div>
+        </div>
+
+        <!-- Jobs & Concurrency Tracker -->
+        <div class="panel-section jobs-section">
+          <div class="section-title">
+            <span>Upload Jobs</span>
+            <span class="subtext">Concurrent isolation</span>
+          </div>
+          <div class="jobs-list" id="jobs-list">
+            <!-- Job items rendered dynamically -->
+          </div>
+        </div>
+      </aside>
+
+      <!-- Center: Axial Medical Viewport -->
+      <main class="viewport-container" id="viewport-container">
+        <!-- Canvas Viewer -->
+        <div class="canvas-wrapper" id="canvas-wrapper">
+          <canvas id="ct-canvas"></canvas>
+          
+          <!-- Viewport HUD Overlays -->
+          <div class="hud hud-top-left">
+            <div class="hud-item hud-strong" id="hud-patient">TAKEHOME^CASE01 &bull; CASE01</div>
+            <div class="hud-item" id="hud-modality">Modality: CT (Axial)</div>
+            <div class="hud-item" id="hud-dims">Matrix: 416 &times; 350 &bull; 1.0mm</div>
+          </div>
+
+          <div class="hud hud-top-right">
+            <div class="hud-item hud-strong" id="hud-wl">W: 400 L: 40</div>
+            <div class="hud-item" id="hud-zoom">Zoom: 100%</div>
+            <button class="hud-btn" id="btn-reset-zoom" title="Reset View">Reset View</button>
+          </div>
+
+          <div class="hud hud-bottom-left">
+            <div class="hud-item hud-strong" id="hud-slice-info">Slice: 90 / 180</div>
+            <div class="hud-item" id="hud-z-pos">Z: 449.9 mm</div>
+          </div>
+
+          <div class="hud hud-bottom-right">
+            <div class="hud-item hud-strong" id="hud-pixel-hu">HU: --</div>
+            <div class="hud-item" id="hud-coords">X: --, Y: --</div>
+          </div>
+
+          <!-- Loading Spinner on Slice Navigation -->
+          <div class="canvas-loader hidden" id="canvas-loader">
+            <div class="spinner"></div>
+          </div>
+        </div>
+
+        <!-- Slice Navigation Scrubber Toolbar -->
+        <div class="viewport-toolbar">
+          <button class="toolbar-btn" id="btn-prev-slice" title="Previous Slice (Down Arrow)">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
+          </button>
+          
+          <div class="scrubber-wrapper">
+            <input type="range" id="slice-slider" min="0" max="179" value="90" class="slice-slider">
+            <div class="lesion-presence-track" id="lesion-presence-track"></div>
+          </div>
+
+          <button class="toolbar-btn" id="btn-next-slice" title="Next Slice (Up Arrow)">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+          </button>
+
+          <div class="slice-indicator-pill">
+            <input type="number" id="slice-input" min="1" max="180" value="91" class="slice-input">
+            <span>/ 180</span>
+          </div>
+        </div>
+      </main>
+
+      <!-- Right Panel: Quantitative Metrics & Analysis -->
+      <aside class="panel right-panel">
+        <div class="panel-section">
+          <div class="section-title">
+            <span>OmniLesion Performance</span>
+            <span class="subtext">Against reference</span>
+          </div>
+
+          <!-- Big Dice Metric Card -->
+          <div class="metric-hero-card">
+            <div class="hero-top">
+              <span class="hero-label">Dice Similarity Coefficient</span>
+              <span class="hero-badge verified" id="grid-status-badge">Grid: Matched</span>
+            </div>
+            <div class="hero-val-group">
+              <span class="hero-num" id="metric-dice-val">0.9284</span>
+              <span class="hero-pct" id="metric-dice-pct">92.8%</span>
+            </div>
+            <div class="progress-bar-bg">
+              <div class="progress-bar-fill" id="metric-dice-bar" style="width: 92.8%;"></div>
+            </div>
+          </div>
+
+          <!-- Grid Compatibility Card -->
+          <div class="info-card" id="grid-check-card">
+            <div class="info-card-header">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              <span>Spatial Grid Verification</span>
+            </div>
+            <div class="info-card-body" id="grid-check-details">
+              Dimensions: 416 &times; 350 &times; 180<br>
+              Voxel Spacing: 0.71 &times; 0.71 &times; 1.00 mm<br>
+              Affine alignment: Confirmed
+            </div>
+          </div>
+
+          <!-- Volumetric Comparison Table -->
+          <div class="volumetric-table">
+            <div class="table-row table-head">
+              <span>Structure</span>
+              <span>Volume</span>
+              <span>Voxels</span>
+            </div>
+            <div class="table-row">
+              <span class="struct-tag ref-tag">Reference</span>
+              <b id="stat-ref-vol">147.3 cm³</b>
+              <span id="stat-ref-vox">793,156</span>
+            </div>
+            <div class="table-row">
+              <span class="struct-tag model-tag">OmniLesion</span>
+              <b id="stat-model-vol">143.0 cm³</b>
+              <span id="stat-model-vox">769,615</span>
+            </div>
+            <div class="table-row highlight-row">
+              <span class="struct-tag overlap-tag">Intersection</span>
+              <b id="stat-overlap-vol">134.8 cm³</b>
+              <span id="stat-overlap-vox">725,456</span>
+            </div>
+          </div>
+
+          <!-- Additional Metrics -->
+          <div class="metrics-grid">
+            <div class="metric-mini-card">
+              <span class="mini-label">Precision (PPV)</span>
+              <span class="mini-val" id="stat-precision">94.3%</span>
+            </div>
+            <div class="metric-mini-card">
+              <span class="mini-label">Recall (Sens)</span>
+              <span class="mini-val" id="stat-recall">91.5%</span>
+            </div>
+            <div class="metric-mini-card">
+              <span class="mini-label">Jaccard (IoU)</span>
+              <span class="mini-val" id="stat-jaccard">86.6%</span>
+            </div>
+            <div class="metric-mini-card">
+              <span class="mini-label">False Positive</span>
+              <span class="mini-val" id="stat-fp">8.2 cm³</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Lesion Slice Distribution Chart -->
+        <div class="panel-section">
+          <div class="section-title">
+            <span>Lesion Extent Across Slices</span>
+            <span class="subtext">Axial plane z</span>
+          </div>
+          <div class="slice-chart-container" id="slice-chart-container">
+            <canvas id="slice-chart" height="90"></canvas>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <!-- Upload Modal / Dialog -->
+  <div class="modal-overlay hidden" id="upload-modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>Trigger OmniLesion Segmentation</h3>
+        <button class="modal-close" id="modal-upload-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p class="modal-desc">
+          Upload a CT DICOM series ZIP archive to <code>POST /v1/segmentations</code>. The server returns model predictions for lesion segmentation.
+        </p>
+
+        <div class="upload-options">
+          <label class="radio-option">
+            <input type="radio" name="upload-source" value="default" checked id="radio-upload-default">
+            <div class="radio-content">
+              <b>Default Case-001 Series (Recommended)</b>
+              <span>Send <code>case-001-dicom.zip</code> (180 axial slices)</span>
+            </div>
+          </label>
+
+          <label class="radio-option">
+            <input type="radio" name="upload-source" value="custom" id="radio-upload-custom">
+            <div class="radio-content">
+              <b>Custom File Upload</b>
+              <span>Test corrupt archives, non-DICOM zips, or alternative series</span>
+            </div>
+          </label>
+        </div>
+
+        <div class="drop-zone hidden" id="drop-zone">
+          <input type="file" id="file-input" accept=".zip" class="hidden">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+          <span id="drop-zone-label">Click or Drag & Drop ZIP file here</span>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="modal-upload-cancel">Cancel</button>
+        <button class="btn btn-primary" id="modal-upload-submit">Start Segmentation Upload</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings Modal -->
+  <div class="modal-overlay hidden" id="settings-modal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3>API Configuration</h3>
+        <button class="modal-close" id="modal-settings-close">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="cfg-base-url">API Base URL</label>
+          <input type="text" id="cfg-base-url" class="form-input" placeholder="https://bnj2vb4zpt.us-east-1.awsapprunner.com">
+          <span class="field-hint">Configurable backend endpoint for OmniLesion service.</span>
+        </div>
+
+        <div class="form-group">
+          <label for="cfg-token">Bearer API Token</label>
+          <input type="password" id="cfg-token" class="form-input" placeholder="tid_...">
+          <span class="field-hint">Never committed to git; valid until Dec 2026.</span>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" id="modal-settings-cancel">Cancel</button>
+        <button class="btn btn-primary" id="modal-settings-save">Save Settings</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
