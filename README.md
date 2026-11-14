@@ -77,7 +77,7 @@ $$\text{DSC} = \frac{2 \cdot |X \cap Y|}{|X| + |Y|}$$
   - Recall (Sensitivity): $\frac{|X \cap Y|}{|Y|}$
   - Per-slice lesion distribution profile along the axial $z$-axis.
 
-For **case-001**, the OmniLesion model achieves **$\text{DSC} = 0.9284$ (92.84%)**, with $134.8\text{ cm}^3$ intersection volume out of $147.3\text{ cm}^3$ reference and $143.0\text{ cm}^3$ predicted volume.
+For **case-001**, the OmniLesion model achieves **$\text{DSC} = 0.9284$ (92.84%)**, with $364.7\text{ cm}^3$ intersection volume out of $398.7\text{ cm}^3$ reference and $386.9\text{ cm}^3$ predicted volume.
 
 ---
 

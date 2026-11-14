@@ -85,3 +85,16 @@ def test_compute_dice_both_empty():
     assert res["dice"] == 1.0
     assert res["ref_voxels"] == 0
     assert res["model_voxels"] == 0
+
+def test_volume_calculation_with_case001_spacing():
+    # Spacing for case-001: 0.708984375 x 0.708984375 x 1.0 mm
+    spacing = (0.708984375, 0.708984375, 1.0)
+    # One voxel volume in mm3: 0.502658844
+    # Create mask with 10,000 voxels
+    mask = np.zeros((100, 100, 2), dtype=np.uint8)
+    mask[:, :, 0] = 1 # 10,000 voxels
+
+    res = compute_metrics(mask, mask, spacing_mm=spacing)
+    expected_vol_cm3 = round(10000 * (0.708984375 * 0.708984375 * 1.0) / 1000.0, 2)
+    assert res["ref_volume_cm3"] == expected_vol_cm3
+    assert res["ref_volume_cm3"] == 5.03  # 5.026... rounded to 5.03 cm3

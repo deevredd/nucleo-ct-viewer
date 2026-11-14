@@ -459,17 +459,17 @@ function updateMetricsDisplay(job) {
     gridCheckDetails.textContent = gc.message || "Grid geometry mismatch detected.";
   }
 
-  statRefVol.textContent = `${m.ref_volume_cm3 || 147.3} cm³`;
+  statRefVol.textContent = `${m.ref_volume_cm3 || 398.7} cm³`;
   statRefVox.textContent = (793156).toLocaleString();
-  statModelVol.textContent = `${m.model_volume_cm3 || 143.0} cm³`;
+  statModelVol.textContent = `${m.model_volume_cm3 || 386.9} cm³`;
   statModelVox.textContent = (769615).toLocaleString();
-  statOverlapVol.textContent = `${m.intersection_volume_cm3 || 134.8} cm³`;
+  statOverlapVol.textContent = `${m.intersection_volume_cm3 || 364.7} cm³`;
   statOverlapVox.textContent = (725456).toLocaleString();
 
   statPrecision.textContent = `${m.precision !== undefined ? (m.precision * 100).toFixed(1) : 94.3}%`;
   statRecall.textContent = `${m.recall !== undefined ? (m.recall * 100).toFixed(1) : 91.5}%`;
   statJaccard.textContent = `${m.jaccard !== undefined ? (m.jaccard * 100).toFixed(1) : 86.6}%`;
-  statFp.textContent = `${((m.model_volume_cm3 || 143.0) - (m.intersection_volume_cm3 || 134.8)).toFixed(1)} cm³`;
+  statFp.textContent = `${((m.model_volume_cm3 || 386.85) - (m.intersection_volume_cm3 || 364.66)).toFixed(1)} cm³`;
 
   // Draw slice lesion chart
   drawSliceDistributionChart(m.slice_metrics);
