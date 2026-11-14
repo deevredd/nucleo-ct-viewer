@@ -131,13 +131,13 @@ Run the focused test suite using pytest:
 ./venv/bin/pytest -v
 ```
 
-The 30 tests cover:
+The 32 tests cover:
 - API response normalization supporting both dictionary (`{"lesions": url}`) and list (`[{"name": "lesions", "url": ...}]`) structure formats.
 - Disabling automatic retries for ambiguous POST timeouts to prevent duplicate backend jobs.
 - Target-specific lesion identification for Dice metrics (preventing erroneous organ mask fallbacks).
-- Reconstructed DICOM-to-NIfTI physical affine compatibility (`check_ct_to_mask_compatibility`) confirming maximum coordinate difference $\Delta < 1.25 \times 10^{-8}\text{ mm}$ within floating-point tolerance.
-- Gantry tilt angle calculation and detection for non-orthogonal slice stepping.
-- Non-uniform slice spacing variance detection across the axial axis.
+- Reconstructed DICOM-to-NIfTI physical affine compatibility (`check_ct_to_mask_compatibility`) confirming maximum coordinate difference $\Delta_{\max} = 1.25 \times 10^{-8}\text{ mm}$ within floating-point tolerance.
+- Gantry tilt handling: calculates slice shear angle relative to slice normal $\mathbf{N}$ and explicitly rejects direct overlay / metric comparison (requiring 3D resampling onto an orthogonal Cartesian grid).
+- Non-uniform slice spacing handling: detects slice step variance along the axial axis and explicitly rejects direct Cartesian comparison (requiring uniform resampling).
 - Exact physical volume computation using the affine determinant $|\det(\mathbf{A}_{3 \times 3})|$.
 - Failed uploads (`bad_request: empty_archive`, `corrupt_zip`, `not_dicom`, etc.) and plain-language translations.
 - Multiple DICOM series detection (`unprocessable: multiple_series`).

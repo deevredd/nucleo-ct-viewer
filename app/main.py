@@ -92,7 +92,10 @@ async def get_case_info():
             ct_cols=default_series.cols,
             ct_affine_ras=default_series.affine_ras,
             mask_shape=reference_mask.shape,
-            mask_affine=reference_mask.affine
+            mask_affine=reference_mask.affine,
+            has_gantry_tilt=default_series.has_gantry_tilt,
+            has_uniform_spacing=default_series.has_uniform_spacing,
+            gantry_tilt_angle_deg=default_series.gantry_tilt_angle_deg
         )
     return summary
 

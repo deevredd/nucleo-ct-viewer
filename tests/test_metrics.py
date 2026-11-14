@@ -104,6 +104,37 @@ def test_check_ct_to_mask_compatibility():
     assert res["shape_match"] is True
     assert res["affine_match"] is True
 
+def test_check_ct_to_mask_compatibility_rejects_gantry_tilt():
+    ct_affine = np.diag([-0.70898438, -0.70898438, 1.0, 1.0])
+    mask_shape = (416, 350, 180)
+    res = check_ct_to_mask_compatibility(
+        ct_num_slices=180,
+        ct_rows=350,
+        ct_cols=416,
+        ct_affine_ras=ct_affine,
+        mask_shape=mask_shape,
+        mask_affine=ct_affine,
+        has_gantry_tilt=True,
+        gantry_tilt_angle_deg=12.5
+    )
+    assert res["is_compatible"] is False
+    assert "Gantry tilt" in res["message"]
+
+def test_check_ct_to_mask_compatibility_rejects_nonuniform_spacing():
+    ct_affine = np.diag([-0.70898438, -0.70898438, 1.0, 1.0])
+    mask_shape = (416, 350, 180)
+    res = check_ct_to_mask_compatibility(
+        ct_num_slices=180,
+        ct_rows=350,
+        ct_cols=416,
+        ct_affine_ras=ct_affine,
+        mask_shape=mask_shape,
+        mask_affine=ct_affine,
+        has_uniform_spacing=False
+    )
+    assert res["is_compatible"] is False
+    assert "Non-uniform slice spacing" in res["message"]
+
 def test_compute_metrics_affine_determinant_volume():
     ref = np.ones((10, 10, 10), dtype=np.uint8)  # 1000 voxels
     model = np.ones((10, 10, 10), dtype=np.uint8)

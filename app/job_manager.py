@@ -178,6 +178,7 @@ class JobManager:
         model_lesion_mask = loaded_masks.get(lesion_key) if lesion_key else None
 
         # Validate CT-to-mask physical grid compatibility if CT series is provided
+        ct_grid_check = None
         if ct_series and getattr(ct_series, "is_loaded", False) and loaded_masks:
             first_mask = model_lesion_mask or next(iter(loaded_masks.values()))
             ct_grid_check = check_ct_to_mask_compatibility(
@@ -186,10 +187,11 @@ class JobManager:
                 ct_cols=ct_series.cols,
                 ct_affine_ras=ct_series.affine_ras,
                 mask_shape=first_mask.shape,
-                mask_affine=first_mask.affine
+                mask_affine=first_mask.affine,
+                has_gantry_tilt=getattr(ct_series, "has_gantry_tilt", False),
+                has_uniform_spacing=getattr(ct_series, "has_uniform_spacing", True),
+                gantry_tilt_angle_deg=getattr(ct_series, "gantry_tilt_angle_deg", 0.0)
             )
-            if not ct_grid_check["is_compatible"]:
-                print(f"Warning: CT-to-mask spatial mismatch: {ct_grid_check['message']}")
 
         if reference_mask and reference_mask.is_loaded:
             if model_lesion_mask:
@@ -200,7 +202,13 @@ class JobManager:
                     affine2=model_lesion_mask.affine
                 )
 
-                if grid_check["is_compatible"]:
+                # Strict physical rejection: If CT-to-mask physical alignment is invalid
+                # (e.g. gantry tilt or non-uniform slice spacing), reject metric comparison
+                if ct_grid_check and not ct_grid_check["is_compatible"]:
+                    grid_check["is_compatible"] = False
+                    grid_check["warning"] = f"Physical comparison rejected: {ct_grid_check['message']}"
+                    metrics = None
+                elif grid_check["is_compatible"]:
                     metrics = compute_metrics(
                         reference_mask=reference_mask.data,
                         model_mask=model_lesion_mask.data,

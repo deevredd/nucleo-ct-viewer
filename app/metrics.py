@@ -52,16 +52,38 @@ def check_ct_to_mask_compatibility(
     ct_affine_ras: Optional[np.ndarray],
     mask_shape: Tuple[int, ...],
     mask_affine: Optional[np.ndarray],
+    has_gantry_tilt: bool = False,
+    has_uniform_spacing: bool = True,
+    gantry_tilt_angle_deg: float = 0.0,
     tolerance: float = 1e-3
 ) -> Dict[str, Any]:
     """
     Validates physical alignment between reconstructed 3D DICOM CT volume
     and 3D NIfTI segmentation mask.
-    In NIfTI, shape is (cols, rows, slices).
+    Rejects direct comparison if:
+    1. Gantry tilt is present (requires 3D shear-correction/resampling).
+    2. Non-uniform slice spacing is present (requires 1D/3D z-resampling).
+    3. Array dimensions or affine matrices differ beyond tolerance.
     """
+    rejection_reasons = []
+
+    if has_gantry_tilt:
+        rejection_reasons.append(
+            f"Gantry tilt ({gantry_tilt_angle_deg:.1f}°) detected. Tilted acquisitions shear the axial "
+            f"plane and require 3D resampling onto an orthogonal Cartesian grid before direct comparison."
+        )
+
+    if not has_uniform_spacing:
+        rejection_reasons.append(
+            "Non-uniform slice spacing detected along the axial axis. Standard Cartesian NIfTI affines "
+            "require uniform slice increments. Series must be resampled to a regular grid before comparison."
+        )
+
     expected_nifti_shape = (ct_cols, ct_rows, ct_num_slices)
     shape_match = (tuple(mask_shape) == expected_nifti_shape)
-    
+    if not shape_match:
+        rejection_reasons.append(f"Dimension mismatch: expected {expected_nifti_shape}, got {mask_shape}")
+
     affine_match = True
     affine_diff_max = 0.0
     if ct_affine_ras is not None and mask_affine is not None:
@@ -70,18 +92,24 @@ def check_ct_to_mask_compatibility(
         if c_aff.shape == (4, 4) and m_aff.shape == (4, 4):
             affine_diff_max = float(np.max(np.abs(c_aff - m_aff)))
             affine_match = np.allclose(c_aff, m_aff, atol=tolerance)
+            if not affine_match:
+                rejection_reasons.append(f"Affine mismatch: max diff {affine_diff_max:.5f} mm exceeds tolerance")
         else:
             affine_match = False
-            
-    is_compatible = shape_match and affine_match
+            rejection_reasons.append("Invalid affine matrix dimensions (expected 4x4)")
+
+    is_compatible = (len(rejection_reasons) == 0)
     return {
         "is_compatible": is_compatible,
         "shape_match": shape_match,
         "affine_match": affine_match,
+        "has_gantry_tilt": has_gantry_tilt,
+        "has_uniform_spacing": has_uniform_spacing,
+        "gantry_tilt_angle_deg": gantry_tilt_angle_deg,
         "ct_expected_shape": list(expected_nifti_shape),
         "mask_shape": list(mask_shape),
         "affine_diff_max": affine_diff_max,
-        "message": "CT and mask physically aligned" if is_compatible else f"CT-to-mask mismatch (shape_match={shape_match}, affine_diff={affine_diff_max:.5f})"
+        "message": "CT and mask physically aligned on uniform orthogonal Cartesian grid" if is_compatible else "; ".join(rejection_reasons)
     }
 
 def compute_metrics(
