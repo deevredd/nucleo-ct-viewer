@@ -116,3 +116,48 @@ def test_dicom_series_inconsistent_dimensions_raises():
 
     with pytest.raises(ValueError, match="Inconsistent slice dimensions"):
         DicomSeries.from_zip(zbuf.getvalue())
+
+def test_dicom_series_affine_ras_construction():
+    zbuf = io.BytesIO()
+    with zipfile.ZipFile(zbuf, 'w') as zf:
+        zf.writestr("slice1.dcm", create_synthetic_dicom_bytes(1, 10.0))
+        zf.writestr("slice2.dcm", create_synthetic_dicom_bytes(2, 20.0))
+
+    series = DicomSeries.from_zip(zbuf.getvalue())
+    assert series.affine_ras is not None
+    assert series.affine_ras.shape == (4, 4)
+    # Check origin RAS = [-ipp_x, -ipp_y, +ipp_z] = [0.0, 0.0, 10.0]
+    assert series.affine_ras[2, 3] == 10.0
+    # Check slice step along Z is 10.0 mm
+    assert series.affine_ras[2, 2] == 10.0
+    assert series.has_gantry_tilt is False
+    assert series.has_uniform_spacing is True
+
+def test_dicom_series_gantry_tilt_detection():
+    # Slice 1 at [0, 0, 0], Slice 2 shifted in Y and Z (gantry tilt)
+    b1 = create_synthetic_dicom_bytes(1, 0.0)
+    import pydicom
+    d2 = pydicom.dcmread(io.BytesIO(b1))
+    d2.ImagePositionPatient = [0.0, 10.0, 10.0]  # Sheared in Y while N=[0,0,1]
+    bio2 = io.BytesIO()
+    d2.save_as(bio2, write_like_original=False)
+
+    zbuf = io.BytesIO()
+    with zipfile.ZipFile(zbuf, 'w') as zf:
+        zf.writestr("slice1.dcm", b1)
+        zf.writestr("slice2.dcm", bio2.getvalue())
+
+    series = DicomSeries.from_zip(zbuf.getvalue())
+    assert series.has_gantry_tilt is True
+    assert series.gantry_tilt_angle_deg > 10.0
+
+def test_dicom_series_nonuniform_spacing_detection():
+    zbuf = io.BytesIO()
+    with zipfile.ZipFile(zbuf, 'w') as zf:
+        # Slices at 0, 10, 30 (spacing jumps from 10 to 20)
+        zf.writestr("slice1.dcm", create_synthetic_dicom_bytes(1, 0.0))
+        zf.writestr("slice2.dcm", create_synthetic_dicom_bytes(2, 10.0))
+        zf.writestr("slice3.dcm", create_synthetic_dicom_bytes(3, 30.0))
+
+    series = DicomSeries.from_zip(zbuf.getvalue())
+    assert series.has_uniform_spacing is False

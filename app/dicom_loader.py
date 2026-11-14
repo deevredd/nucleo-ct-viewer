@@ -28,6 +28,9 @@ class DicomSeries:
         self.study_uid: str = ""
         self.z_positions: List[float] = []
         self.affine_ras: Optional[np.ndarray] = None
+        self.has_gantry_tilt: bool = False
+        self.has_uniform_spacing: bool = True
+        self.gantry_tilt_angle_deg: float = 0.0
         self.is_loaded: bool = False
 
     @classmethod
@@ -132,19 +135,58 @@ class DicomSeries:
         self.volume_hu = volume
 
         # Construct 4x4 physical affine matrix in scanner RAS+ convention
-        # Direction of columns in LPS: X * col_spacing
-        # Direction of rows in LPS: Y * row_spacing
-        # Direction of slices in LPS: N * slice_spacing
-        slice_spacing = float(np.median(diffs)) if len(self.z_positions) > 1 else self.slice_thickness
+        #
+        # Coordinate Space & Axis Order Mapping:
+        # - In DICOM: ImageOrientationPatient defines:
+        #     X (iop[:3]): unit vector along columns (increasing column index c across a row)
+        #     Y (iop[3:]): unit vector along rows (increasing row index r down a column)
+        #     N = cross(X, Y): unit vector orthogonal to the axial slice plane
+        # - In NIfTI: voxel array is ordered (i, j, k) = (columns, rows, slices) = (416, 350, 180).
+        #     Voxel index i corresponds to DICOM column c (spacing = PixelSpacing[1])
+        #     Voxel index j corresponds to DICOM row r (spacing = PixelSpacing[0])
+        #     Voxel index k corresponds to DICOM slice k (spacing = step between consecutive slices)
+        #
+        # - Column 0 of Affine: maps index i (DICOM columns) to scanner RAS+ coordinates
+        # - Column 1 of Affine: maps index j (DICOM rows) to scanner RAS+ coordinates
+        # - Column 2 of Affine: maps index k (DICOM slices) to scanner RAS+ coordinates
+        # - Column 3 of Affine: physical coordinate of voxel (0, 0, 0) in scanner RAS+
         col_spacing = float(self.pixel_spacing[1])
         row_spacing = float(self.pixel_spacing[0])
         first_ipp = np.array([float(x) for x in getattr(raw_slices[0], 'ImagePositionPatient', [0.0, 0.0, 0.0])[:3]])
 
-        # Convert LPS to RAS+ by flipping X and Y axes:
+        # Determine physical slice step vector in LPS
+        if len(raw_slices) > 1:
+            second_ipp = np.array([float(x) for x in getattr(raw_slices[1], 'ImagePositionPatient', [0.0, 0.0, 0.0])[:3]])
+            step_lps = second_ipp - first_ipp
+            step_len = float(np.linalg.norm(step_lps))
+            step_dir = step_lps / step_len if step_len > 1e-6 else N
+            
+            # Gantry Tilt Detection: Check if slice step vector is collinear with slice normal N
+            alignment = float(np.dot(step_dir, N))
+            self.gantry_tilt_angle_deg = float(np.degrees(np.arccos(np.clip(abs(alignment), 0.0, 1.0))))
+            self.has_gantry_tilt = (self.gantry_tilt_angle_deg > 0.5)
+            
+            # Non-uniform Slice Spacing Check
+            diffs_array = np.diff(self.z_positions)
+            median_step = float(np.median(diffs_array))
+            spacing_variance = float(np.max(np.abs(diffs_array - median_step))) if len(diffs_array) > 0 else 0.0
+            self.has_uniform_spacing = (spacing_variance < 0.05 * median_step) if median_step > 0 else True
+            
+            u_slice_lps = step_lps
+        else:
+            u_slice_lps = N * self.slice_thickness
+            self.has_gantry_tilt = False
+            self.has_uniform_spacing = True
+
+        # Vectors in DICOM LPS+:
+        u_col_lps = X * col_spacing
+        u_row_lps = Y * row_spacing
+
+        # Convert DICOM LPS+ to NIfTI RAS+ by flipping X and Y axes:
         # RAS_x = -LPS_x, RAS_y = -LPS_y, RAS_z = LPS_z
-        u_col_ras = np.array([-X[0] * col_spacing, -X[1] * col_spacing, X[2] * col_spacing])
-        u_row_ras = np.array([-Y[0] * row_spacing, -Y[1] * row_spacing, Y[2] * row_spacing])
-        u_slice_ras = np.array([-N[0] * slice_spacing, -N[1] * slice_spacing, N[2] * slice_spacing])
+        u_col_ras = np.array([-u_col_lps[0], -u_col_lps[1], u_col_lps[2]])
+        u_row_ras = np.array([-u_row_lps[0], -u_row_lps[1], u_row_lps[2]])
+        u_slice_ras = np.array([-u_slice_lps[0], -u_slice_lps[1], u_slice_lps[2]])
         origin_ras = np.array([-first_ipp[0], -first_ipp[1], first_ipp[2]])
 
         aff_ras = np.eye(4, dtype=float)
@@ -200,5 +242,8 @@ class DicomSeries:
             "study_uid": self.study_uid,
             "z_range": [min(self.z_positions), max(self.z_positions)] if self.z_positions else [],
             "affine_ras": self.affine_ras.tolist() if self.affine_ras is not None else None,
+            "has_gantry_tilt": self.has_gantry_tilt,
+            "gantry_tilt_angle_deg": round(self.gantry_tilt_angle_deg, 2),
+            "has_uniform_spacing": self.has_uniform_spacing,
             "presets": WINDOW_PRESETS
         }
