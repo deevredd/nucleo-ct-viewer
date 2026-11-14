@@ -100,6 +100,27 @@
             </div>
           </div>
 
+          <!-- Difference / Error Map Card -->
+          <div class="mask-card diff-card">
+            <div class="card-header">
+              <label class="switch-container">
+                <input type="checkbox" id="toggle-diff-map">
+                <span class="switch-slider"></span>
+              </label>
+              <div class="card-title-group">
+                <span class="mask-name">Error Map (TP/FP/FN)</span>
+                <span class="badge badge-diff">Analysis</span>
+              </div>
+            </div>
+            <div class="card-details hidden" id="diff-legend-container">
+              <div class="diff-legend">
+                <div class="legend-item"><span class="legend-chip chip-tp"></span> Overlap (True Positive)</div>
+                <div class="legend-item"><span class="legend-chip chip-fn"></span> Missed (False Negative)</div>
+                <div class="legend-item"><span class="legend-chip chip-fp"></span> Over-seg (False Positive)</div>
+              </div>
+            </div>
+          </div>
+
           <!-- Dynamic Model Structures Container -->
           <div id="model-structures-container">
             <!-- Dynamically populated per structure -->
@@ -339,6 +360,18 @@
           <input type="file" id="file-input" accept=".zip" class="hidden">
           <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
           <span id="drop-zone-label">Click or Drag & Drop ZIP file here</span>
+        </div>
+
+        <div class="stress-test-group">
+          <span class="stress-label">Interviewer Stress Tests:</span>
+          <div class="stress-btn-row">
+            <button type="button" class="btn btn-outline btn-xs" id="btn-stress-corrupt" title="Upload damaged bytes to verify plain-language error handling">
+              Simulate Corrupt ZIP (400)
+            </button>
+            <button type="button" class="btn btn-outline btn-xs" id="btn-stress-concurrent" title="Launch two concurrent jobs to verify isolation">
+              Simulate Concurrent Uploads
+            </button>
+          </div>
         </div>
       </div>
       <div class="modal-footer">

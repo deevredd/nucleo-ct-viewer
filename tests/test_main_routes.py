@@ -34,4 +34,10 @@ def test_api_routes_end_to_end():
         assert res_jobs.status_code == 200
         jobs = res_jobs.json()
         assert len(jobs) >= 1
+        job_id = jobs[0]["id"]
         assert jobs[0]["metrics"]["dice"] == pytest.approx(0.9284, abs=1e-3)
+
+        # Diff / Error map slice rendering
+        res_diff = client.get(f"/api/jobs/{job_id}/diff_slice/90")
+        assert res_diff.status_code == 200
+        assert res_diff.content[:8] == b'\x89PNG\r\n\x1a\n'

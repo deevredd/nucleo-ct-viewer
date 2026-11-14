@@ -13,6 +13,7 @@ const state = {
   // Overlays
   showRefMask: true,
   refOpacity: 0.55,
+  showDiffMap: false,
   
   // Active job and dynamic structures
   activeJobId: null,
@@ -59,6 +60,10 @@ const opacityRefMask = document.getElementById("opacity-ref-mask");
 const valRefOpacity = document.getElementById("val-ref-opacity");
 const refVolumeText = document.getElementById("ref-volume-text");
 const modelStructuresContainer = document.getElementById("model-structures-container");
+const toggleDiffMap = document.getElementById("toggle-diff-map");
+const diffLegendContainer = document.getElementById("diff-legend-container");
+const btnStressCorrupt = document.getElementById("btn-stress-corrupt");
+const btnStressConcurrent = document.getElementById("btn-stress-concurrent");
 
 // Windowing Controls
 const sliderWindowWidth = document.getElementById("slider-window-width");
@@ -188,32 +193,41 @@ async function renderCurrentSlice() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(ctImg, 0, 0);
 
-    // 2. Overlay Reference Mask if enabled
-    if (state.showRefMask) {
-      const alphaInt = Math.round(state.refOpacity * 255);
-      const refUrl = `/api/reference/slice/${sliceIdx}?r=16&g=185&b=129&a=${alphaInt}`;
+    // If Error / Difference Map mode is active, render combined TP/FP/FN analysis
+    if (state.showDiffMap && state.activeJobId) {
+      const diffUrl = `/api/jobs/${state.activeJobId}/diff_slice/${sliceIdx}?alpha=160`;
       try {
-        const refImg = await loadImage(refUrl);
-        ctx.drawImage(refImg, 0, 0);
-      } catch (e) {
-        // Mask slice might be empty
+        const diffImg = await loadImage(diffUrl);
+        ctx.drawImage(diffImg, 0, 0);
+      } catch (e) {}
+    } else {
+      // 2. Overlay Reference Mask if enabled
+      if (state.showRefMask) {
+        const alphaInt = Math.round(state.refOpacity * 255);
+        const refUrl = `/api/reference/slice/${sliceIdx}?r=16&g=185&b=129&a=${alphaInt}`;
+        try {
+          const refImg = await loadImage(refUrl);
+          ctx.drawImage(refImg, 0, 0);
+        } catch (e) {
+          // Mask slice might be empty
+        }
       }
-    }
 
-    // 3. Overlay Model Structures for active job
-    if (state.activeJobId) {
-      const activeJob = state.jobs.find(j => j.id === state.activeJobId);
-      if (activeJob && activeJob.structures) {
-        for (const struct of activeJob.structures) {
-          const structName = struct.name;
-          const sState = state.structureStates[structName];
-          if (sState && sState.visible) {
-            const alphaInt = Math.round(sState.opacity * 255);
-            const modelUrl = `/api/jobs/${state.activeJobId}/structures/${structName}/slice/${sliceIdx}?r=245&g=158&b=11&a=${alphaInt}`;
-            try {
-              const modelImg = await loadImage(modelUrl);
-              ctx.drawImage(modelImg, 0, 0);
-            } catch (e) {}
+      // 3. Overlay Model Structures for active job
+      if (state.activeJobId) {
+        const activeJob = state.jobs.find(j => j.id === state.activeJobId);
+        if (activeJob && activeJob.structures) {
+          for (const struct of activeJob.structures) {
+            const structName = struct.name;
+            const sState = state.structureStates[structName];
+            if (sState && sState.visible) {
+              const alphaInt = Math.round(sState.opacity * 255);
+              const modelUrl = `/api/jobs/${state.activeJobId}/structures/${structName}/slice/${sliceIdx}?r=245&g=158&b=11&a=${alphaInt}`;
+              try {
+                const modelImg = await loadImage(modelUrl);
+                ctx.drawImage(modelImg, 0, 0);
+              } catch (e) {}
+            }
           }
         }
       }
@@ -720,6 +734,17 @@ function setupEventListeners() {
     renderCurrentSlice();
   });
 
+  // Difference / Error Map Toggle
+  if (toggleDiffMap) {
+    toggleDiffMap.addEventListener("change", (e) => {
+      state.showDiffMap = e.target.checked;
+      if (diffLegendContainer) {
+        diffLegendContainer.classList.toggle("hidden", !state.showDiffMap);
+      }
+      renderCurrentSlice();
+    });
+  }
+
   // Window / Level Sliders
   sliderWindowWidth.addEventListener("input", (e) => {
     state.windowWidth = parseInt(e.target.value);
@@ -839,6 +864,53 @@ function setupEventListeners() {
       showError("Upload Trigger Error", err.message);
     }
   });
+
+  // Stress Test 1: Simulate Corrupt Upload
+  if (btnStressCorrupt) {
+    btnStressCorrupt.addEventListener("click", async () => {
+      uploadModal.classList.add("hidden");
+      const fakeCorruptBytes = new Uint8Array([0x50, 0x4b, 0x03, 0x04, 0x00, 0x00, 0xff, 0xff, 0xde, 0xad, 0xbe, 0xef]);
+      const corruptBlob = new Blob([fakeCorruptBytes], { type: "application/zip" });
+      const formData = new FormData();
+      formData.append("file", corruptBlob, "corrupted_archive_test.zip");
+      formData.append("use_default", "false");
+
+      try {
+        const res = await fetch("/api/segmentations/upload", { method: "POST", body: formData });
+        const data = await res.json();
+        await refreshJobs();
+        if (data.job_id) {
+          setActiveJob(data.job_id);
+        }
+      } catch (err) {
+        showError("Upload Trigger Error", err.message);
+      }
+    });
+  }
+
+  // Stress Test 2: Simulate Concurrent Uploads
+  if (btnStressConcurrent) {
+    btnStressConcurrent.addEventListener("click", async () => {
+      uploadModal.classList.add("hidden");
+      const fd1 = new FormData();
+      fd1.append("use_default", "true");
+      const fd2 = new FormData();
+      fd2.append("use_default", "true");
+
+      try {
+        const [r1, r2] = await Promise.all([
+          fetch("/api/segmentations/upload", { method: "POST", body: fd1 }),
+          fetch("/api/segmentations/upload", { method: "POST", body: fd2 })
+        ]);
+        const d1 = await r1.json();
+        const d2 = await r2.json();
+        await refreshJobs();
+        if (d1.job_id) setActiveJob(d1.job_id);
+      } catch (err) {
+        showError("Upload Trigger Error", err.message);
+      }
+    });
+  }
 
   // Settings Modal
   btnOpenSettings.addEventListener("click", () => {

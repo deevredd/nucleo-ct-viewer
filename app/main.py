@@ -1,7 +1,10 @@
 import asyncio
 from contextlib import asynccontextmanager
+import io
 from pathlib import Path
 from typing import Optional
+import numpy as np
+from PIL import Image
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Query, Response
 from fastapi.responses import HTMLResponse, JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -157,6 +160,55 @@ async def get_job_structure_slice(
     try:
         png_bytes = mask.render_slice_png(idx, color_rgba=rgba)
         return Response(content=png_bytes, media_type="image/png")
+    except IndexError:
+        raise HTTPException(status_code=404, detail=f"Slice {idx} out of range.")
+
+# --- Error / Confusion Difference Map Slice Endpoint ---
+
+@app.get("/api/jobs/{job_id}/diff_slice/{idx}")
+async def get_job_diff_slice(
+    job_id: str,
+    idx: int,
+    alpha: int = 150
+):
+    """
+    Renders a pixel-wise error map for the specified slice:
+    - True Positives (Overlap): Emerald Green (16, 185, 129)
+    - False Negatives (Missed by model): Sky Blue (59, 130, 246)
+    - False Positives (Over-segmented by model): Crimson Red (239, 68, 68)
+    """
+    job = job_manager.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found.")
+    if not reference_mask.is_loaded:
+        raise HTTPException(status_code=404, detail="Reference mask is not loaded.")
+    
+    model_mask = job.masks.get("lesions") or (list(job.masks.values())[0] if job.masks else None)
+    if not model_mask or not model_mask.is_loaded:
+        raise HTTPException(status_code=404, detail="Model mask not found for job.")
+    
+    try:
+        ref_2d = reference_mask.get_slice_2d(idx)
+        mod_2d = model_mask.get_slice_2d(idx)
+        
+        rows, cols = ref_2d.shape
+        out = np.zeros((rows, cols, 4), dtype=np.uint8)
+        
+        ref_pos = (ref_2d > 0)
+        mod_pos = (mod_2d > 0)
+        
+        tp = ref_pos & mod_pos
+        fn = ref_pos & (~mod_pos)
+        fp = (~ref_pos) & mod_pos
+        
+        out[tp] = [16, 185, 129, alpha]
+        out[fn] = [59, 130, 246, alpha]
+        out[fp] = [239, 68, 68, alpha]
+        
+        img = Image.fromarray(out)
+        buf = io.BytesIO()
+        img.save(buf, format="PNG")
+        return Response(content=buf.getvalue(), media_type="image/png")
     except IndexError:
         raise HTTPException(status_code=404, detail=f"Slice {idx} out of range.")
 
