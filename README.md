@@ -130,11 +130,12 @@ Run the focused test suite using pytest:
 ./venv/bin/pytest -v
 ```
 
-The 16 tests cover:
+The 18 tests cover:
 - Failed uploads (`bad_request: empty_archive`, `corrupt_zip`, etc.) and plain-language translations.
 - Honouring `Retry-After` on 429 and 503 with backoff and retry.
 - Concurrent requests isolation verifying results are never mixed.
 - DICOM series loading, slice ordering along the axial $z$-axis, and HU conversion.
+- In-memory Gzip decompression and header decoding for `.nii.gz` masks.
 - Grid compatibility validation (exact match vs mismatched dimensions or affine).
 - Dice computation across edge cases (perfect overlap, partial overlap, zero overlap, empty masks).
 - End-to-end FastAPI endpoint integration.
@@ -143,18 +144,19 @@ The 16 tests cover:
 
 ## What I Would Do Next (With More Time)
 
-If allotted additional time, the following enhancements would be prioritized:
-1. **Multi-Planar Reconstruction (MPR):** Add Sagittal and Coronal orthogonal re-sliced viewports alongside the Axial plane.
-2. **3D Surface Mesh Rendering:** Generate an interactive 3D volumetric mesh (using WebGL / Three.js or Marching Cubes) of the segmented liver lesion.
-3. **Chunked Streaming Uploader:** Implement chunked file transfer with resume capability for constrained bandwidth environments.
-4. **Interactive Brush / Annotation Tool:** Allow radiologists to edit or refine predicted segmentations and export corrected DICOM RT-STRUCT or NIfTI files.
-5. **Per-lesion Connected Component Analysis:** Identify individual distinct lesion instances, computing RECIST diameter measurements for clinical tumor burden staging.
+If allotted additional time, the following clinical and technical capabilities would be prioritized, directly aligning with Nucleo's longitudinal oncology platform:
+
+1. **Automated RECIST 1.1 Tumor Tracking:** Perform 3D connected-component analysis on predicted lesion masks to segment individual lesions, determine longest axial diameters in the transaxial plane, and classify lesions into target vs. non-target lesions for longitudinal tumor burden response tracking.
+2. **Body Composition & Sarcopenia Profiling:** Segment skeletal muscle and adipose tissue (subcutaneous and visceral fat) at the third lumbar vertebra (L3) cross-section to compute Skeletal Muscle Index (SMI) and sarcopenia staging.
+3. **Multi-Planar Reconstruction (MPR):** Implement real-time Sagittal and Coronal orthogonal re-slicing alongside the Axial plane to allow oncologists and radiologists to inspect tumor margins across all three anatomical planes.
+4. **Interactive Radiologist Annotation & Refinement:** Allow clinicians to touch up or correct predicted boundaries using an interactive brush and export the adjusted contours as standardized DICOM RT-STRUCT or NIfTI for downstream radiation therapy or surgical resection planning.
+5. **Chunked Streaming Uploader:** Implement chunked file transfer with resume capability for constrained hospital network uplinks.
 
 ---
 
 ## Note on AI Coding Tools
 
-This solution was developed using Antigravity AI agentic tools for rapid scaffolding, DICOM/NIfTI geometry verification, and test coverage generation. Every architectural decision, retry strategy, affine transformation check, and mathematical formulation has been verified and understood end-to-end.
+This solution was developed using Antigravity AI coding tools for rapid scaffolding, exploration, and test generation. All mathematical formulations (DICOM LPS+ to NIfTI RAS+ affine transformation, vector projection $\mathbf{IPP} \cdot \mathbf{N}$, voxel volume calculations), architecture, error-branching logic, and test suites have been designed, reviewed, and verified from first principles.
 
 ---
 
