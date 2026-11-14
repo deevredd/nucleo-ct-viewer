@@ -72,3 +72,47 @@ def test_dicom_series_windowing_png():
     png_bytes = series.render_slice_png(0, window=400, level=40)
     assert len(png_bytes) > 0
     assert png_bytes[:8] == b'\x89PNG\r\n\x1a\n'
+
+def test_dicom_series_empty_archive_raises():
+    zbuf = io.BytesIO()
+    with zipfile.ZipFile(zbuf, 'w') as zf:
+        zf.writestr("readme.txt", "not a dicom")
+
+    with pytest.raises(ValueError, match="No valid DICOM files found"):
+        DicomSeries.from_zip(zbuf.getvalue())
+
+def test_dicom_series_multiple_series_raises():
+    b1 = create_synthetic_dicom_bytes(1, 0.0)
+    # Create second slice with different SeriesInstanceUID
+    ds2 = Dataset()
+    # Read back b1 and modify UID
+    import pydicom
+    d1 = pydicom.dcmread(io.BytesIO(b1))
+    d2 = pydicom.dcmread(io.BytesIO(b1))
+    d2.SeriesInstanceUID = "9.9.9.9"
+    bio2 = io.BytesIO()
+    d2.save_as(bio2, write_like_original=False)
+
+    zbuf = io.BytesIO()
+    with zipfile.ZipFile(zbuf, 'w') as zf:
+        zf.writestr("slice1.dcm", b1)
+        zf.writestr("slice2.dcm", bio2.getvalue())
+
+    with pytest.raises(ValueError, match="Multiple series detected"):
+        DicomSeries.from_zip(zbuf.getvalue())
+
+def test_dicom_series_inconsistent_dimensions_raises():
+    b1 = create_synthetic_dicom_bytes(1, 0.0)
+    import pydicom
+    d2 = pydicom.dcmread(io.BytesIO(b1))
+    d2.Rows = 32  # Mismatched dimension
+    bio2 = io.BytesIO()
+    d2.save_as(bio2, write_like_original=False)
+
+    zbuf = io.BytesIO()
+    with zipfile.ZipFile(zbuf, 'w') as zf:
+        zf.writestr("slice1.dcm", b1)
+        zf.writestr("slice2.dcm", bio2.getvalue())
+
+    with pytest.raises(ValueError, match="Inconsistent slice dimensions"):
+        DicomSeries.from_zip(zbuf.getvalue())

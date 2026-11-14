@@ -91,3 +91,41 @@ async def test_upload_honours_retry_after(client):
         assert res["success"] is True
         assert res["case_id"] == "case-001"
         assert any(item[0] == "retrying" for item in callback_log)
+
+@pytest.mark.asyncio
+async def test_upload_multiple_series_error(client):
+    mock_resp = MagicMock()
+    mock_resp.status_code = 422
+    mock_resp.json.return_value = {
+        "error": {
+            "code": "unprocessable",
+            "message": "Multiple series in zip",
+            "details": {"reason": "multiple_series"}
+        }
+    }
+
+    with patch("httpx.AsyncClient.post", return_value=mock_resp):
+        res = await client.upload_segmentation(b"multi_series_bytes", max_retries=0)
+        assert res["success"] is False
+        assert res["code"] == "unprocessable"
+        assert res["reason"] == "multiple_series"
+        assert "multiple DICOM series" in res["user_message"]
+
+@pytest.mark.asyncio
+async def test_upload_unauthorized_expired_token(client):
+    mock_resp = MagicMock()
+    mock_resp.status_code = 401
+    mock_resp.json.return_value = {
+        "error": {
+            "code": "unauthorized",
+            "message": "Token has expired",
+            "details": {"reason": "expired"}
+        }
+    }
+
+    with patch("httpx.AsyncClient.post", return_value=mock_resp):
+        res = await client.upload_segmentation(b"zip_bytes", max_retries=0)
+        assert res["success"] is False
+        assert res["code"] == "unauthorized"
+        assert res["reason"] == "expired"
+        assert "token has expired" in res["user_message"].lower()

@@ -130,15 +130,18 @@ Run the focused test suite using pytest:
 ./venv/bin/pytest -v
 ```
 
-The 18 tests cover:
-- Failed uploads (`bad_request: empty_archive`, `corrupt_zip`, etc.) and plain-language translations.
+The 23 tests cover:
+- Failed uploads (`bad_request: empty_archive`, `corrupt_zip`, `not_dicom`, etc.) and plain-language translations.
+- Multiple DICOM series detection (`unprocessable: multiple_series`).
+- Inconsistent slice dimensions and non-uniform geometry.
+- Authorization handling and expired tokens (`unauthorized: expired`).
 - Honouring `Retry-After` on 429 and 503 with backoff and retry.
 - Concurrent requests isolation verifying results are never mixed.
 - DICOM series loading, slice ordering along the axial $z$-axis, and HU conversion.
 - In-memory Gzip decompression and header decoding for `.nii.gz` masks.
 - Grid compatibility validation (exact match vs mismatched dimensions or affine).
 - Dice computation across edge cases (perfect overlap, partial overlap, zero overlap, empty masks).
-- End-to-end FastAPI endpoint integration.
+- End-to-end FastAPI endpoint integration, diff map rendering, and job history clearing.
 
 ---
 
