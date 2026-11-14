@@ -68,7 +68,7 @@ class DicomSeries:
         if not raw_slices:
             raise ValueError("No valid DICOM files found in zip archive.")
 
-        # Validate consistent SeriesInstanceUID
+        # Validate consistent SeriesInstanceUID and dimensions
         first = raw_slices[0]
         self.series_uid = getattr(first, 'SeriesInstanceUID', 'unknown')
         self.study_uid = getattr(first, 'StudyInstanceUID', 'unknown')
@@ -77,19 +77,47 @@ class DicomSeries:
         self.pixel_spacing = (float(first.PixelSpacing[0]), float(first.PixelSpacing[1]))
         self.slice_thickness = float(getattr(first, 'SliceThickness', 1.0))
 
-        # Sort slices by ImagePositionPatient[2] (axial Z)
-        def get_z(d):
+        iop_first = getattr(first, 'ImageOrientationPatient', [1.0, 0.0, 0.0, 0.0, 1.0, 0.0])
+        X = np.array(iop_first[:3], dtype=float)
+        Y = np.array(iop_first[3:], dtype=float)
+        N = np.cross(X, Y)
+        norm = np.linalg.norm(N)
+        if norm > 1e-6:
+            N = N / norm
+        else:
+            N = np.array([0.0, 0.0, 1.0])
+
+        # Validate consistency across all slices
+        for idx, d in enumerate(raw_slices):
+            uid = getattr(d, 'SeriesInstanceUID', '')
+            if uid and self.series_uid and uid != self.series_uid:
+                raise ValueError(f"Multiple series detected: slice has SeriesInstanceUID '{uid}', expected '{self.series_uid}'.")
+            if int(d.Rows) != self.rows or int(d.Columns) != self.cols:
+                raise ValueError(f"Inconsistent slice dimensions: {d.Rows}x{d.Columns} vs {self.rows}x{self.cols}.")
+
+        # Sort slices by physical position along the slice normal N
+        def get_dist_along_normal(d):
             if hasattr(d, 'ImagePositionPatient') and len(d.ImagePositionPatient) >= 3:
-                return float(d.ImagePositionPatient[2])
+                ipp = np.array([float(x) for x in d.ImagePositionPatient[:3]])
+                return float(np.dot(ipp, N))
             elif hasattr(d, 'SliceLocation'):
                 return float(d.SliceLocation)
             elif hasattr(d, 'InstanceNumber'):
                 return float(d.InstanceNumber)
             return 0.0
 
-        raw_slices.sort(key=get_z)
+        raw_slices.sort(key=get_dist_along_normal)
         self.num_slices = len(raw_slices)
-        self.z_positions = [get_z(d) for d in raw_slices]
+        self.z_positions = [get_dist_along_normal(d) for d in raw_slices]
+
+        # Detect duplicate slice positions or gaps
+        if len(self.z_positions) > 1:
+            diffs = np.diff(self.z_positions)
+            if np.any(np.isclose(diffs, 0.0, atol=1e-3)):
+                print("Warning: Duplicate slice positions detected in DICOM series.")
+            median_spacing = float(np.median(diffs))
+            if median_spacing > 0 and np.any(diffs > median_spacing * 1.5):
+                print(f"Warning: Potential missing slices detected (expected ~{median_spacing:.2f}mm spacing).")
 
         # Extract HU pixel volume (num_slices, rows, cols)
         volume = np.zeros((self.num_slices, self.rows, self.cols), dtype=np.int16)

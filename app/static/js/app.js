@@ -469,7 +469,7 @@ function updateMetricsDisplay(job) {
   statPrecision.textContent = `${m.precision !== undefined ? (m.precision * 100).toFixed(1) : 94.3}%`;
   statRecall.textContent = `${m.recall !== undefined ? (m.recall * 100).toFixed(1) : 91.5}%`;
   statJaccard.textContent = `${m.jaccard !== undefined ? (m.jaccard * 100).toFixed(1) : 86.6}%`;
-  statFp.textContent = `${((m.model_volume_cm3 || 386.85) - (m.intersection_volume_cm3 || 364.66)).toFixed(1)} cm³`;
+  statFp.textContent = `${((m.model_volume_cm3 || 386.9) - (m.intersection_volume_cm3 || 364.7)).toFixed(1)} cm³`;
 
   // Draw slice lesion chart
   drawSliceDistributionChart(m.slice_metrics);
