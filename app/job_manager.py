@@ -4,7 +4,7 @@ import uuid
 from typing import Dict, Any, Optional, List
 from app.api_client import NucleoApiClient
 from app.nifti_loader import NiftiMask
-from app.metrics import check_grid_compatibility, compute_metrics
+from app.metrics import check_grid_compatibility, check_ct_to_mask_compatibility, compute_metrics
 
 class Job:
     def __init__(self, job_id: str, label: str = "upload"):
@@ -107,7 +107,8 @@ class JobManager:
         job_id: str,
         zip_bytes: bytes,
         api_client: NucleoApiClient,
-        reference_mask: Optional[NiftiMask] = None
+        reference_mask: Optional[NiftiMask] = None,
+        ct_series: Optional[Any] = None
     ):
         job = self.get_job(job_id)
         if not job:
@@ -167,12 +168,30 @@ class JobManager:
         grid_check = None
         metrics = None
 
-        if reference_mask and reference_mask.is_loaded:
-            # We look for a lesion mask in the returned structures
-            model_lesion_mask = loaded_masks.get("lesions") or (
-                list(loaded_masks.values())[0] if loaded_masks else None
-            )
+        # Specifically identify the lesion structure (do NOT fall back to an arbitrary first mask, e.g. an organ)
+        lesion_key = None
+        for k in loaded_masks.keys():
+            if k.lower() in ("lesions", "lesion", "pan_cancer_lesions", "tumor", "tumour"):
+                lesion_key = k
+                break
+        
+        model_lesion_mask = loaded_masks.get(lesion_key) if lesion_key else None
 
+        # Validate CT-to-mask physical grid compatibility if CT series is provided
+        if ct_series and getattr(ct_series, "is_loaded", False) and loaded_masks:
+            first_mask = model_lesion_mask or next(iter(loaded_masks.values()))
+            ct_grid_check = check_ct_to_mask_compatibility(
+                ct_num_slices=ct_series.num_slices,
+                ct_rows=ct_series.rows,
+                ct_cols=ct_series.cols,
+                ct_affine_ras=ct_series.affine_ras,
+                mask_shape=first_mask.shape,
+                mask_affine=first_mask.affine
+            )
+            if not ct_grid_check["is_compatible"]:
+                print(f"Warning: CT-to-mask spatial mismatch: {ct_grid_check['message']}")
+
+        if reference_mask and reference_mask.is_loaded:
             if model_lesion_mask:
                 grid_check = check_grid_compatibility(
                     shape1=reference_mask.shape,
@@ -185,10 +204,16 @@ class JobManager:
                     metrics = compute_metrics(
                         reference_mask=reference_mask.data,
                         model_mask=model_lesion_mask.data,
+                        affine=reference_mask.affine,
                         spacing_mm=reference_mask.spacing
                     )
                 else:
                     grid_check["warning"] = "Masks are on different spatial grids; Dice coefficient could not be computed directly."
+            else:
+                grid_check = {
+                    "is_compatible": False,
+                    "message": "No lesion structure identified in model output; lesion metrics unavailable."
+                }
 
         # 4. Mark completed
         job.set_completed(

@@ -69,8 +69,9 @@ $$\text{DSC} = \frac{2 \cdot |X \cap Y|}{|X| + |Y|}$$
 
 - **Intersection ($|X \cap Y|$):** Number of positive voxels where both $X = 1$ and $Y = 1$.
 - **Edge cases:** If $|X| + |Y| = 0$ (both masks empty), $\text{DSC} = 1.0$. If one is empty and the other non-empty, $\text{DSC} = 0.0$.
-- **Measurements in cm³:** Given voxel spacing $\Delta x \times \Delta y \times \Delta z$ ($0.70898 \times 0.70898 \times 1.000\text{ mm} \approx 0.50265\text{ mm}^3$), volume in cm³ is computed as:
-  $$\text{Volume (cm}^3\text{)} = \frac{\text{Voxels} \times (\Delta x \cdot \Delta y \cdot \Delta z)}{1000}$$
+- **Measurements in cm³:** Voxel volume is computed directly from the physical affine matrix determinant $|\det(\mathbf{A}_{3 \times 3})|$ to ensure exact volume measurements even under arbitrary rotations, shears, or anisotropic spacing:
+  $$\text{Volume (cm}^3\text{)} = \frac{\text{Voxels} \times |\det(\mathbf{A}_{3 \times 3})|}{1000}$$
+  For case-001, $|\det(\mathbf{A}_{3 \times 3})| = |-0.708984 \times -0.708984 \times 1.000| \approx 0.50266\text{ mm}^3/\text{voxel}$.
 - **Additional Clinical Metrics:**
   - Jaccard Index (IoU): $\frac{|X \cap Y|}{|X \cup Y|}$
   - Precision (PPV): $\frac{|X \cap Y|}{|X|}$
@@ -130,7 +131,12 @@ Run the focused test suite using pytest:
 ./venv/bin/pytest -v
 ```
 
-The 23 tests cover:
+The 27 tests cover:
+- API response normalization supporting both dictionary (`{"lesions": url}`) and list (`[{"name": "lesions", "url": ...}]`) structure formats.
+- Disabling automatic retries for ambiguous POST timeouts to prevent duplicate backend jobs.
+- Target-specific lesion identification for Dice metrics (preventing erroneous organ mask fallbacks).
+- Reconstructed DICOM-to-NIfTI physical affine compatibility (`check_ct_to_mask_compatibility`).
+- Exact physical volume computation using the affine determinant $|\det(\mathbf{A}_{3 \times 3})|$.
 - Failed uploads (`bad_request: empty_archive`, `corrupt_zip`, `not_dicom`, etc.) and plain-language translations.
 - Multiple DICOM series detection (`unprocessable: multiple_series`).
 - Inconsistent slice dimensions and non-uniform geometry.

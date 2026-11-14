@@ -15,7 +15,7 @@ from app.dicom_loader import DicomSeries, WINDOW_PRESETS
 from app.nifti_loader import NiftiMask
 from app.api_client import NucleoApiClient
 from app.job_manager import job_manager, Job
-from app.metrics import check_grid_compatibility, compute_metrics
+from app.metrics import check_grid_compatibility, check_ct_to_mask_compatibility, compute_metrics
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
@@ -86,6 +86,14 @@ async def get_case_info():
     summary["has_reference_mask"] = reference_mask.is_loaded
     if reference_mask.is_loaded:
         summary["reference_mask"] = reference_mask.get_summary()
+        summary["ct_to_ref_compatibility"] = check_ct_to_mask_compatibility(
+            ct_num_slices=default_series.num_slices,
+            ct_rows=default_series.rows,
+            ct_cols=default_series.cols,
+            ct_affine_ras=default_series.affine_ras,
+            mask_shape=reference_mask.shape,
+            mask_affine=reference_mask.affine
+        )
     return summary
 
 @app.get("/api/case/slice/{idx}")
@@ -249,7 +257,8 @@ async def trigger_segmentation_upload(
             job_id=job.id,
             zip_bytes=zip_bytes,
             api_client=client,
-            reference_mask=reference_mask
+            reference_mask=reference_mask,
+            ct_series=default_series
         )
     )
 
@@ -284,6 +293,7 @@ async def create_demo_cached_job():
             metrics = compute_metrics(
                 reference_mask=reference_mask.data,
                 model_mask=cached_mask.data,
+                affine=reference_mask.affine,
                 spacing_mm=reference_mask.spacing
             )
 

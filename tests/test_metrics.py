@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from app.metrics import check_grid_compatibility, compute_metrics
+from app.metrics import check_grid_compatibility, check_ct_to_mask_compatibility, compute_metrics
 
 def test_check_grid_compatibility_exact_match():
     shape = (416, 350, 180)
@@ -85,3 +85,33 @@ def test_compute_dice_both_empty():
     assert res["dice"] == 1.0
     assert res["ref_voxels"] == 0
     assert res["model_voxels"] == 0
+
+def test_check_ct_to_mask_compatibility():
+    # CT: 180 slices, 350 rows, 416 cols -> NIfTI expected shape: (416, 350, 180)
+    ct_affine = np.diag([-0.70898438, -0.70898438, 1.0, 1.0])
+    mask_shape = (416, 350, 180)
+    mask_affine = ct_affine.copy()
+
+    res = check_ct_to_mask_compatibility(
+        ct_num_slices=180,
+        ct_rows=350,
+        ct_cols=416,
+        ct_affine_ras=ct_affine,
+        mask_shape=mask_shape,
+        mask_affine=mask_affine
+    )
+    assert res["is_compatible"] is True
+    assert res["shape_match"] is True
+    assert res["affine_match"] is True
+
+def test_compute_metrics_affine_determinant_volume():
+    ref = np.ones((10, 10, 10), dtype=np.uint8)  # 1000 voxels
+    model = np.ones((10, 10, 10), dtype=np.uint8)
+    
+    # Affine with diagonal [2.0, 2.0, 2.0, 1.0] -> |det(A)| = 8.0 mm3/voxel = 0.008 cm3/voxel
+    # 1000 voxels * 0.008 cm3 = 8.0 cm3
+    affine = np.diag([2.0, 2.0, 2.0, 1.0])
+    res = compute_metrics(ref, model, affine=affine)
+    assert res["ref_volume_cm3"] == 8.0
+    assert res["model_volume_cm3"] == 8.0
+    assert res["intersection_volume_cm3"] == 8.0

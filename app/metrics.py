@@ -45,14 +45,55 @@ def check_grid_compatibility(
         "message": "; ".join(details)
     }
 
+def check_ct_to_mask_compatibility(
+    ct_num_slices: int,
+    ct_rows: int,
+    ct_cols: int,
+    ct_affine_ras: Optional[np.ndarray],
+    mask_shape: Tuple[int, ...],
+    mask_affine: Optional[np.ndarray],
+    tolerance: float = 1e-3
+) -> Dict[str, Any]:
+    """
+    Validates physical alignment between reconstructed 3D DICOM CT volume
+    and 3D NIfTI segmentation mask.
+    In NIfTI, shape is (cols, rows, slices).
+    """
+    expected_nifti_shape = (ct_cols, ct_rows, ct_num_slices)
+    shape_match = (tuple(mask_shape) == expected_nifti_shape)
+    
+    affine_match = True
+    affine_diff_max = 0.0
+    if ct_affine_ras is not None and mask_affine is not None:
+        c_aff = np.asarray(ct_affine_ras, dtype=float)
+        m_aff = np.asarray(mask_affine, dtype=float)
+        if c_aff.shape == (4, 4) and m_aff.shape == (4, 4):
+            affine_diff_max = float(np.max(np.abs(c_aff - m_aff)))
+            affine_match = np.allclose(c_aff, m_aff, atol=tolerance)
+        else:
+            affine_match = False
+            
+    is_compatible = shape_match and affine_match
+    return {
+        "is_compatible": is_compatible,
+        "shape_match": shape_match,
+        "affine_match": affine_match,
+        "ct_expected_shape": list(expected_nifti_shape),
+        "mask_shape": list(mask_shape),
+        "affine_diff_max": affine_diff_max,
+        "message": "CT and mask physically aligned" if is_compatible else f"CT-to-mask mismatch (shape_match={shape_match}, affine_diff={affine_diff_max:.5f})"
+    }
+
 def compute_metrics(
     reference_mask: np.ndarray,
     model_mask: np.ndarray,
+    affine: Optional[np.ndarray] = None,
     spacing_mm: Optional[Tuple[float, float, float]] = (0.708984375, 0.708984375, 1.0)
 ) -> Dict[str, Any]:
     """
     Compute Dice Similarity Coefficient (DSC) and volumetric metrics
     between reference (ground-truth) mask and model prediction mask.
+    Voxel volume is computed from |det(A_3x3)| to support general coordinate frames.
     """
     ref_bool = (reference_mask > 0)
     model_bool = (model_mask > 0)
@@ -77,10 +118,15 @@ def compute_metrics(
         precision = float(intersection) / float(model_voxels) if model_voxels > 0 else 0.0
         recall = float(intersection) / float(ref_voxels) if ref_voxels > 0 else 0.0
 
-    # Volume computation in cm3 (ml)
-    voxel_vol_cm3 = 1.0 / 1000.0  # default 1 mm3 = 0.001 cm3
-    if spacing_mm and len(spacing_mm) == 3:
+    # Voxel volume computation using the affine determinant |det(A_3x3)|
+    # This general formula correctly computes physical voxel volume for arbitrary orientations/shears
+    if affine is not None and np.asarray(affine).shape >= (3, 3):
+        a = np.asarray(affine, dtype=float)
+        voxel_vol_cm3 = abs(float(np.linalg.det(a[:3, :3]))) / 1000.0
+    elif spacing_mm and len(spacing_mm) == 3:
         voxel_vol_cm3 = float(spacing_mm[0] * spacing_mm[1] * spacing_mm[2]) / 1000.0
+    else:
+        voxel_vol_cm3 = 1.0 / 1000.0
 
     ref_vol_cm3 = round(ref_voxels * voxel_vol_cm3, 2)
     model_vol_cm3 = round(model_voxels * voxel_vol_cm3, 2)

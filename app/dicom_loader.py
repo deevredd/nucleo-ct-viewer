@@ -27,6 +27,7 @@ class DicomSeries:
         self.series_uid: str = ""
         self.study_uid: str = ""
         self.z_positions: List[float] = []
+        self.affine_ras: Optional[np.ndarray] = None
         self.is_loaded: bool = False
 
     @classmethod
@@ -129,6 +130,30 @@ class DicomSeries:
             volume[i] = hu.astype(np.int16)
 
         self.volume_hu = volume
+
+        # Construct 4x4 physical affine matrix in scanner RAS+ convention
+        # Direction of columns in LPS: X * col_spacing
+        # Direction of rows in LPS: Y * row_spacing
+        # Direction of slices in LPS: N * slice_spacing
+        slice_spacing = float(np.median(diffs)) if len(self.z_positions) > 1 else self.slice_thickness
+        col_spacing = float(self.pixel_spacing[1])
+        row_spacing = float(self.pixel_spacing[0])
+        first_ipp = np.array([float(x) for x in getattr(raw_slices[0], 'ImagePositionPatient', [0.0, 0.0, 0.0])[:3]])
+
+        # Convert LPS to RAS+ by flipping X and Y axes:
+        # RAS_x = -LPS_x, RAS_y = -LPS_y, RAS_z = LPS_z
+        u_col_ras = np.array([-X[0] * col_spacing, -X[1] * col_spacing, X[2] * col_spacing])
+        u_row_ras = np.array([-Y[0] * row_spacing, -Y[1] * row_spacing, Y[2] * row_spacing])
+        u_slice_ras = np.array([-N[0] * slice_spacing, -N[1] * slice_spacing, N[2] * slice_spacing])
+        origin_ras = np.array([-first_ipp[0], -first_ipp[1], first_ipp[2]])
+
+        aff_ras = np.eye(4, dtype=float)
+        aff_ras[:3, 0] = u_col_ras
+        aff_ras[:3, 1] = u_row_ras
+        aff_ras[:3, 2] = u_slice_ras
+        aff_ras[:3, 3] = origin_ras
+        self.affine_ras = aff_ras
+
         self.is_loaded = True
 
     def get_slice_hu(self, slice_idx: int) -> np.ndarray:
@@ -174,5 +199,6 @@ class DicomSeries:
             "series_uid": self.series_uid,
             "study_uid": self.study_uid,
             "z_range": [min(self.z_positions), max(self.z_positions)] if self.z_positions else [],
+            "affine_ras": self.affine_ras.tolist() if self.affine_ras is not None else None,
             "presets": WINDOW_PRESETS
         }

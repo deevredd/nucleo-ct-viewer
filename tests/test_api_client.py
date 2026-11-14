@@ -1,7 +1,7 @@
 import pytest
 import httpx
 from unittest.mock import patch, MagicMock
-from app.api_client import NucleoApiClient, translate_error
+from app.api_client import NucleoApiClient, translate_error, normalize_structures
 
 @pytest.fixture
 def client():
@@ -21,6 +21,30 @@ def test_translate_error_known_reasons():
 def test_translate_error_fallback():
     msg = translate_error("unknown_code", "some_reason", fallback_msg="Custom fallback")
     assert "Custom fallback" in msg
+
+def test_normalize_structures_formats():
+    # Format 1: Dictionary / Object format {"lesions": "https://..."}
+    dict_input = {"lesions": "https://test.nucleo.local/v1/cases/case-001/structures/lesions"}
+    norm1 = normalize_structures(dict_input)
+    assert len(norm1) == 1
+    assert norm1[0]["name"] == "lesions"
+    assert norm1[0]["url"] == "https://test.nucleo.local/v1/cases/case-001/structures/lesions"
+
+    # Format 2: List format [{"name": "lesions", "url": "https://..."}]
+    list_input = [{"name": "lesions", "url": "https://test.nucleo.local/v1/cases/case-001/structures/lesions"}]
+    norm2 = normalize_structures(list_input)
+    assert len(norm2) == 1
+    assert norm2[0]["name"] == "lesions"
+    assert norm2[0]["url"] == "https://test.nucleo.local/v1/cases/case-001/structures/lesions"
+
+@pytest.mark.asyncio
+async def test_upload_timeout_does_not_retry(client):
+    with patch("httpx.AsyncClient.post", side_effect=httpx.TimeoutException("Read timed out")):
+        res = await client.upload_segmentation(b"dummy_zip", max_retries=3)
+        assert res["success"] is False
+        assert res["status_code"] == 408
+        assert res["code"] == "timeout"
+        assert "server may still be processing" in res["user_message"]
 
 @pytest.mark.asyncio
 async def test_upload_success(client):

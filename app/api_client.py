@@ -72,6 +72,29 @@ def translate_error(code: str, reason: Optional[str] = None, fallback_msg: str =
     }
     return code_defaults.get(code, fallback_msg or f"Error ({code}): {reason or 'unknown'}")
 
+def normalize_structures(raw_structures: Any) -> list:
+    """
+    Normalizes structures response from API into a consistent List[Dict[str, str]]:
+    Handles both:
+    1. Object format: {"lesions": "https://.../lesions.nii.gz"}
+    2. List format: [{"name": "lesions", "url": "https://.../lesions.nii.gz"}]
+    Validates structure entries and preserves URLs and names without hardcoding.
+    """
+    normalized = []
+    if isinstance(raw_structures, dict):
+        for name, url in raw_structures.items():
+            if isinstance(url, str):
+                normalized.append({"name": str(name), "url": url})
+            elif isinstance(url, dict) and "url" in url:
+                normalized.append({"name": str(name), "url": str(url["url"])})
+    elif isinstance(raw_structures, list):
+        for item in raw_structures:
+            if isinstance(item, dict) and "name" in item and "url" in item:
+                normalized.append({"name": str(item["name"]), "url": str(item["url"])})
+            elif isinstance(item, str):
+                normalized.append({"name": item, "url": f"/v1/structures/{item}"})
+    return normalized
+
 class NucleoApiClient:
     def __init__(self, base_url: str, token: str, timeout_seconds: float = 60.0):
         self.base_url = base_url.rstrip("/")
@@ -121,10 +144,11 @@ class NucleoApiClient:
                 # Success
                 if resp.status_code == 200:
                     data = resp.json()
+                    raw_structs = data.get("structures", [])
                     return {
                         "success": True,
                         "case_id": data.get("case_id"),
-                        "structures": data.get("structures", []),
+                        "structures": normalize_structures(raw_structs),
                         "status_code": 200
                     }
 
@@ -186,20 +210,15 @@ class NucleoApiClient:
                 }
 
             except httpx.TimeoutException:
-                if attempt < max_retries:
-                    attempt += 1
-                    backoff = 2.0 * (1.5 ** attempt) + random.uniform(0.1, 0.5)
-                    if progress_callback:
-                        progress_callback("retrying", attempt, backoff)
-                    await asyncio.sleep(backoff)
-                    continue
+                # Ambiguous POST timeout: Do not automatically retry POST uploads!
+                # The server may already be processing the scan; retrying risks duplicating jobs.
                 return {
                     "success": False,
                     "status_code": 408,
                     "code": "timeout",
-                    "reason": "request_timeout",
-                    "user_message": translate_error("timeout", None),
-                    "raw_message": "Network request timed out",
+                    "reason": "upload_timeout",
+                    "user_message": "Upload request timed out while waiting for server response. The server may still be processing your scan. Please check jobs or retry manually.",
+                    "raw_message": "POST upload request timed out",
                     "details": {}
                 }
             except (httpx.ConnectError, httpx.NetworkError):
