@@ -167,5 +167,5 @@ def test_check_ct_to_mask_compatibility_rejects_corner_displacement():
     )
     assert res["is_compatible"] is False
     assert res["affine_match"] is False
-    assert "Corner physical displacement" in res["message"]
+    assert "physical displacement" in res["message"].lower()
     assert res["corner_disp_max_mm"] >= 1.0

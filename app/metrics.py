@@ -95,34 +95,44 @@ def check_ct_to_mask_compatibility(
         c_aff = np.asarray(ct_affine_ras, dtype=float)
         m_aff = np.asarray(mask_affine, dtype=float)
         if c_aff.shape == (4, 4) and m_aff.shape == (4, 4):
-            affine_diff_max = float(np.max(np.abs(c_aff - m_aff)))
-            
-            # 8-corner 3D physical displacement validation:
-            # Evaluate bounding corners of voxel grid [0, cols-1] x [0, rows-1] x [0, slices-1]
-            corners = np.array([
-                [0, 0, 0, 1.0],
-                [0, 0, ct_num_slices - 1, 1.0],
-                [0, ct_rows - 1, 0, 1.0],
-                [0, ct_rows - 1, ct_num_slices - 1, 1.0],
-                [ct_cols - 1, 0, 0, 1.0],
-                [ct_cols - 1, 0, ct_num_slices - 1, 1.0],
-                [ct_cols - 1, ct_rows - 1, 0, 1.0],
-                [ct_cols - 1, ct_rows - 1, ct_num_slices - 1, 1.0],
-            ], dtype=float).T  # shape (4, 8)
-            
-            pts_ct = (c_aff @ corners)[:3, :]
-            pts_mask = (m_aff @ corners)[:3, :]
-            corner_disp_max_mm = float(np.max(np.linalg.norm(pts_ct - pts_mask, axis=0)))
+            if not (np.isfinite(c_aff).all() and np.isfinite(m_aff).all()):
+                affine_match = False
+                rejection_reasons.append("Non-finite values (NaN/Inf) detected in affine matrices")
+            else:
+                affine_diff_max = float(np.max(np.abs(c_aff - m_aff)))
+                
+                # 8-corner outer boundary 3D physical displacement validation:
+                # By convexity of the affine error vector d(p) = (A_ct - A_mask) p,
+                # evaluating the Euclidean displacement at the 8 extreme outer voxel boundaries
+                # [-0.5, cols - 0.5] x [-0.5, rows - 0.5] x [-0.5, slices - 0.5]
+                # mathematically guarantees that physical displacement nowhere in the entire volume exceeds this bound.
+                corners = np.array([
+                    [-0.5, -0.5, -0.5, 1.0],
+                    [-0.5, -0.5, ct_num_slices - 0.5, 1.0],
+                    [-0.5, ct_rows - 0.5, -0.5, 1.0],
+                    [-0.5, ct_rows - 0.5, ct_num_slices - 0.5, 1.0],
+                    [ct_cols - 0.5, -0.5, -0.5, 1.0],
+                    [ct_cols - 0.5, -0.5, ct_num_slices - 0.5, 1.0],
+                    [ct_cols - 0.5, ct_rows - 0.5, -0.5, 1.0],
+                    [ct_cols - 0.5, ct_rows - 0.5, ct_num_slices - 0.5, 1.0],
+                ], dtype=float).T  # shape (4, 8)
+                
+                pts_ct = (c_aff @ corners)[:3, :]
+                pts_mask = (m_aff @ corners)[:3, :]
+                corner_disp_max_mm = float(np.max(np.linalg.norm(pts_ct - pts_mask, axis=0)))
 
-            affine_match = (affine_diff_max <= tolerance) and (corner_disp_max_mm <= max_displacement_mm)
-            if not affine_match:
+                # 1. Primary check: physical displacement in millimeters
                 if corner_disp_max_mm > max_displacement_mm:
+                    affine_match = False
                     rejection_reasons.append(
-                        f"Corner physical displacement ({corner_disp_max_mm:.4f} mm) exceeds tolerance ({max_displacement_mm:.4f} mm)"
+                        f"Outer boundary physical displacement ({corner_disp_max_mm:.4f} mm) exceeds tolerance ({max_displacement_mm:.4f} mm)"
                     )
-                else:
+                
+                # 2. Supplementary numerical check: matrix coefficient sanity
+                if affine_diff_max > tolerance:
+                    affine_match = False
                     rejection_reasons.append(
-                        f"Affine coefficient mismatch: max diff {affine_diff_max:.5f} exceeds tolerance {tolerance:.5f}"
+                        f"Affine numerical coefficient difference ({affine_diff_max:.5f}) exceeds sanity tolerance ({tolerance:.5f})"
                     )
         else:
             affine_match = False
