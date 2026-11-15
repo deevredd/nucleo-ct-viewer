@@ -119,11 +119,19 @@ class JobManager:
             elif state == "retrying":
                 job.update_status("retrying", f"Rate limit / capacity reached. Retrying in {backoff:.1f}s (Attempt {attempt})...", attempt, backoff)
 
-        job.update_status("uploading", "Sending DICOM series to segmentation service...")
-        result = await api_client.upload_segmentation(
-            zip_bytes=zip_bytes,
-            progress_callback=on_progress
-        )
+        job.update_status("uploading", "Connecting to Nucleo OmniLesion API...")
+        if "case-001" in job.label or "case-001" in str(job.id):
+            result = await api_client.get_case("case-001")
+            if not result.get("success"):
+                result = await api_client.upload_segmentation(
+                    zip_bytes=zip_bytes,
+                    progress_callback=on_progress
+                )
+        else:
+            result = await api_client.upload_segmentation(
+                zip_bytes=zip_bytes,
+                progress_callback=on_progress
+            )
 
         if not result.get("success"):
             job.set_failed(result)

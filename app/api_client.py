@@ -102,6 +102,25 @@ class NucleoApiClient:
             resp.raise_for_status()
             return resp.json()
 
+    async def get_case(self, case_id: str) -> Dict[str, Any]:
+        url = f"{self.base_url}/v1/cases/{case_id}"
+        headers = self._get_headers()
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                resp = await client.get(url, headers=headers)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    raw_structs = data.get("structures", [])
+                    return {
+                        "success": True,
+                        "case_id": data.get("id") or case_id,
+                        "structures": normalize_structures(raw_structs),
+                        "status_code": 200
+                    }
+                return {"success": False, "status_code": resp.status_code}
+        except Exception:
+            return {"success": False, "status_code": 500}
+
     async def upload_segmentation(
         self,
         zip_bytes: bytes,
