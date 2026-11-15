@@ -19,13 +19,11 @@ from app.metrics import check_grid_compatibility, check_ct_to_mask_compatibility
 
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
-# In-memory storage for default loaded case
 default_series = DicomSeries()
-reference_mask = NiftiMask(name="reference_lesions", color=(16, 185, 129, 140)) # Green
+reference_mask = NiftiMask(name="reference_lesions", color=(16, 185, 129, 140))
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Load default DICOM series if present
     if settings.default_dicom_zip.exists():
         try:
             default_series.load_from_zip(settings.default_dicom_zip)
@@ -33,7 +31,6 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             print(f"Warning: Failed to load default DICOM series: {e}")
 
-    # Load default reference mask if present
     if settings.default_reference_nii.exists():
         try:
             reference_mask.load(settings.default_reference_nii)
@@ -52,8 +49,6 @@ async def serve_index():
     if not index_file.exists():
         return HTMLResponse("<h1>Index file not found</h1>", status_code=404)
     return FileResponse(index_file)
-
-# --- Configuration Endpoints ---
 
 class ConfigUpdate(BaseModel):
     base_url: Optional[str] = None
@@ -75,8 +70,6 @@ async def update_config(payload: ConfigUpdate):
         "api_base_url": settings.api_base_url,
         "masked_token": settings.masked_token
     }
-
-# --- Case & CT Endpoints ---
 
 @app.get("/api/case/info")
 async def get_case_info():
@@ -119,15 +112,12 @@ async def get_pixel_hu(idx: int, x: int = Query(...), y: int = Query(...)):
         raise HTTPException(status_code=503, detail="DICOM series not loaded.")
     try:
         slice_hu = default_series.get_slice_hu(idx)
-        # Note: DICOM slice has shape (rows, cols) where y=row, x=col
         if 0 <= y < slice_hu.shape[0] and 0 <= x < slice_hu.shape[1]:
             hu_val = int(slice_hu[y, x])
             return {"x": x, "y": y, "slice": idx, "hu": hu_val}
         return {"x": x, "y": y, "slice": idx, "hu": None}
     except IndexError:
         raise HTTPException(status_code=404, detail=f"Slice {idx} out of range.")
-
-# --- Reference Mask Slice Endpoint ---
 
 @app.get("/api/reference/slice/{idx}")
 async def get_reference_mask_slice(
@@ -144,8 +134,6 @@ async def get_reference_mask_slice(
         return Response(content=png_bytes, media_type="image/png")
     except IndexError:
         raise HTTPException(status_code=404, detail=f"Slice {idx} out of range.")
-
-# --- Model Mask Slice Endpoint ---
 
 @app.get("/api/jobs/{job_id}/structures/{structure_name}/slice/{idx}")
 async def get_job_structure_slice(
@@ -174,20 +162,12 @@ async def get_job_structure_slice(
     except IndexError:
         raise HTTPException(status_code=404, detail=f"Slice {idx} out of range.")
 
-# --- Error / Confusion Difference Map Slice Endpoint ---
-
 @app.get("/api/jobs/{job_id}/diff_slice/{idx}")
 async def get_job_diff_slice(
     job_id: str,
     idx: int,
     alpha: int = 150
 ):
-    """
-    Renders a pixel-wise error map for the specified slice:
-    - True Positives (Overlap): Emerald Green (16, 185, 129)
-    - False Negatives (Missed by model): Sky Blue (59, 130, 246)
-    - False Positives (Over-segmented by model): Crimson Red (239, 68, 68)
-    """
     job = job_manager.get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail=f"Job '{job_id}' not found.")
@@ -223,17 +203,11 @@ async def get_job_diff_slice(
     except IndexError:
         raise HTTPException(status_code=404, detail=f"Slice {idx} out of range.")
 
-# --- Upload & Segmentation Jobs ---
-
 @app.post("/api/segmentations/upload")
 async def trigger_segmentation_upload(
     file: Optional[UploadFile] = File(None),
     use_default: bool = Form(False)
 ):
-    """
-    Trigger upload of a DICOM series zip to POST /v1/segmentations.
-    Generates a unique job ID so concurrent requests never mix results.
-    """
     if use_default or file is None:
         if not settings.default_dicom_zip.exists():
             raise HTTPException(status_code=400, detail="Default DICOM zip file not found on disk.")
@@ -244,17 +218,14 @@ async def trigger_segmentation_upload(
         zip_bytes = await file.read()
         label = file.filename or "uploaded-archive.zip"
 
-    # Create job
     job = job_manager.create_job(label=label)
 
-    # Initialize client
     client = NucleoApiClient(
         base_url=settings.api_base_url,
         token=settings.api_token,
         timeout_seconds=90.0
     )
 
-    # Execute in background task
     asyncio.create_task(
         job_manager.execute_upload_job(
             job_id=job.id,
@@ -269,10 +240,6 @@ async def trigger_segmentation_upload(
 
 @app.post("/api/segmentations/demo-cached")
 async def create_demo_cached_job():
-    """
-    Instantly create a completed job using pre-cached model mask for case-001.
-    Useful for instant demo or verification without waiting for external upload.
-    """
     if not settings.cached_model_nii.exists():
         raise HTTPException(status_code=404, detail="Cached model mask file not found.")
 

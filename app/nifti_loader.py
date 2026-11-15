@@ -9,8 +9,8 @@ from PIL import Image
 class NiftiMask:
     def __init__(self, name: str = "mask", color: Tuple[int, int, int, int] = (16, 185, 129, 140)):
         self.name: str = name
-        self.color: Tuple[int, int, int, int] = color  # RGBA
-        self.data: Optional[np.ndarray] = None  # shape: (cols, rows, slices) = (416, 350, 180)
+        self.color: Tuple[int, int, int, int] = color
+        self.data: Optional[np.ndarray] = None
         self.affine: Optional[np.ndarray] = None
         self.shape: Tuple[int, ...] = ()
         self.spacing: Tuple[float, ...] = ()
@@ -34,8 +34,6 @@ class NiftiMask:
         self._init_from_nib(img)
 
     def load_bytes(self, raw_bytes: bytes):
-        # The API returns a .nii.gz file (gzip-compressed NIfTI)
-        # Decompress gzip stream so nibabel reads the uncompressed NIfTI header
         if raw_bytes.startswith(b'\x1f\x8b'):
             raw_bytes = gzip.decompress(raw_bytes)
         fh = nib.FileHolder(fileobj=io.BytesIO(raw_bytes))
@@ -53,18 +51,11 @@ class NiftiMask:
         self.is_loaded = True
 
     def get_slice_2d(self, slice_idx: int) -> np.ndarray:
-        """
-        Extract 2D mask for axial slice `slice_idx`.
-        Transposes from NIfTI (cols, rows) to DICOM (rows, cols).
-        """
         if not self.is_loaded or self.data is None:
             raise RuntimeError(f"Mask {self.name} is not loaded.")
         if slice_idx < 0 or slice_idx >= self.shape[2]:
             raise IndexError(f"Slice index {slice_idx} out of range (0..{self.shape[2]-1})")
         
-        # In NIfTI, shape is (cols, rows, slices)
-        # Slicing along axis 2 gives (cols, rows)
-        # Transpose (.T) produces (rows, cols) = (350, 416)
         slice_cols_rows = self.data[:, :, slice_idx]
         return slice_cols_rows.T
 
@@ -73,10 +64,6 @@ class NiftiMask:
         slice_idx: int,
         color_rgba: Optional[Tuple[int, int, int, int]] = None
     ) -> bytes:
-        """
-        Render RGBA PNG of the mask for the specified slice.
-        Pixels with value > 0 are colored; background is fully transparent.
-        """
         mask_2d = self.get_slice_2d(slice_idx)
         rows, cols = mask_2d.shape
         

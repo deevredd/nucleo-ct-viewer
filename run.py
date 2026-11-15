@@ -1,13 +1,9 @@
 #!/usr/bin/env python3
-"""
-Single-command launcher for Nucleo OmniLesion CT Viewer.
-"""
 import sys
 import os
 from pathlib import Path
 import webbrowser
 
-# Add project root to sys.path
 PROJECT_ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -23,7 +19,6 @@ def main():
     print("=" * 65)
     print("  Starting server... Press Ctrl+C to stop.\n")
 
-    # Try to open the browser automatically in background
     try:
         webbrowser.open(f"http://{settings.host}:{settings.port}")
     except Exception:

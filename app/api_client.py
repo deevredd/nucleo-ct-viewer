@@ -46,18 +46,12 @@ ERROR_TRANSLATIONS = {
 }
 
 def translate_error(code: str, reason: Optional[str] = None, fallback_msg: str = "") -> str:
-    """
-    Branch strictly on error.code and details.reason as specified in requirements.
-    """
-    # 1. Exact match on (code, reason)
     if (code, reason) in ERROR_TRANSLATIONS:
         return ERROR_TRANSLATIONS[(code, reason)]
     
-    # 2. Match on (code, None)
     if (code, None) in ERROR_TRANSLATIONS:
         return ERROR_TRANSLATIONS[(code, None)]
     
-    # 3. Code-based fallback
     code_defaults = {
         "bad_request": "The uploaded data is invalid or could not be parsed.",
         "unauthorized": "Authentication failed. Please check your API token.",
@@ -73,13 +67,6 @@ def translate_error(code: str, reason: Optional[str] = None, fallback_msg: str =
     return code_defaults.get(code, fallback_msg or f"Error ({code}): {reason or 'unknown'}")
 
 def normalize_structures(raw_structures: Any) -> list:
-    """
-    Normalizes structures response from API into a consistent List[Dict[str, str]]:
-    Handles both:
-    1. Object format: {"lesions": "https://.../lesions.nii.gz"}
-    2. List format: [{"name": "lesions", "url": "https://.../lesions.nii.gz"}]
-    Validates structure entries and preserves URLs and names without hardcoding.
-    """
     normalized = []
     if isinstance(raw_structures, dict):
         for name, url in raw_structures.items():
@@ -121,15 +108,9 @@ class NucleoApiClient:
         max_retries: int = 3,
         progress_callback: Optional[Callable[[str, int, float], None]] = None
     ) -> Dict[str, Any]:
-        """
-        Upload DICOM series zip to POST /v1/segmentations.
-        Honours Retry-After on 429 and 503 with exponential backoff and jitter.
-        Returns the parsed JSON response with case_id and structures.
-        """
         url = f"{self.base_url}/v1/segmentations"
         headers = self._get_headers(content_type="application/zip")
 
-        # Use an extended timeout for the upload and simulated inference
         timeout_cfg = httpx.Timeout(connect=15.0, read=self.timeout, write=self.timeout, pool=15.0)
 
         attempt = 0
@@ -141,7 +122,6 @@ class NucleoApiClient:
                 async with httpx.AsyncClient(timeout=timeout_cfg) as client:
                     resp = await client.post(url, content=zip_bytes, headers=headers)
 
-                # Success
                 if resp.status_code == 200:
                     data = resp.json()
                     raw_structs = data.get("structures", [])
@@ -152,7 +132,6 @@ class NucleoApiClient:
                         "status_code": 200
                     }
 
-                # Parse error response body
                 error_body = {}
                 try:
                     error_body = resp.json().get("error", {})
@@ -173,9 +152,7 @@ class NucleoApiClient:
                 details = error_body.get("details", {})
                 reason = details.get("reason") if isinstance(details, dict) else None
 
-                # Check if retryable (429 or 503)
                 if resp.status_code in (429, 503) and attempt < max_retries:
-                    # Parse Retry-After header or details
                     retry_header = resp.headers.get("Retry-After")
                     retry_s = 2.0
                     if retry_header:
@@ -186,7 +163,6 @@ class NucleoApiClient:
                     elif isinstance(details, dict) and "retry_after_s" in details:
                         retry_s = float(details["retry_after_s"])
 
-                    # Exponential backoff + jitter for repeated 503s
                     jitter = random.uniform(0.1, 0.6)
                     backoff = retry_s * (1.5 ** attempt) + jitter
                     attempt += 1
@@ -197,7 +173,6 @@ class NucleoApiClient:
                     await asyncio.sleep(backoff)
                     continue
 
-                # Non-retryable error or retries exhausted
                 user_msg = translate_error(code, reason, error_body.get("message", ""))
                 return {
                     "success": False,
@@ -210,8 +185,6 @@ class NucleoApiClient:
                 }
 
             except httpx.TimeoutException:
-                # Ambiguous POST timeout: Do not automatically retry POST uploads!
-                # The server may already be processing the scan; retrying risks duplicating jobs.
                 return {
                     "success": False,
                     "status_code": 408,
@@ -254,10 +227,6 @@ class NucleoApiClient:
         }
 
     async def download_structure_mask(self, structure_url: str) -> bytes:
-        """
-        Download a .nii.gz segmentation mask from the given URL.
-        Relative URLs are resolved against self.base_url.
-        """
         if structure_url.startswith("http"):
             url = structure_url
         else:

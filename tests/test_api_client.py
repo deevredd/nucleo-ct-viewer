@@ -23,14 +23,12 @@ def test_translate_error_fallback():
     assert "Custom fallback" in msg
 
 def test_normalize_structures_formats():
-    # Format 1: Dictionary / Object format {"lesions": "https://..."}
     dict_input = {"lesions": "https://test.nucleo.local/v1/cases/case-001/structures/lesions"}
     norm1 = normalize_structures(dict_input)
     assert len(norm1) == 1
     assert norm1[0]["name"] == "lesions"
     assert norm1[0]["url"] == "https://test.nucleo.local/v1/cases/case-001/structures/lesions"
 
-    # Format 2: List format [{"name": "lesions", "url": "https://..."}]
     list_input = [{"name": "lesions", "url": "https://test.nucleo.local/v1/cases/case-001/structures/lesions"}]
     norm2 = normalize_structures(list_input)
     assert len(norm2) == 1
@@ -82,8 +80,6 @@ async def test_upload_failed_bad_request(client):
 
 @pytest.mark.asyncio
 async def test_upload_honours_retry_after(client):
-    # First response: 503 with Retry-After: 0.1
-    # Second response: 200 success
     resp_503 = MagicMock()
     resp_503.status_code = 503
     resp_503.headers = {"Retry-After": "0.05"}

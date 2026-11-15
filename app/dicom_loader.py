@@ -18,7 +18,7 @@ WINDOW_PRESETS = {
 class DicomSeries:
     def __init__(self):
         self.slices: List[Dict[str, Any]] = []
-        self.volume_hu: Optional[np.ndarray] = None  # shape: (num_slices, rows, cols)
+        self.volume_hu: Optional[np.ndarray] = None
         self.rows: int = 0
         self.cols: int = 0
         self.num_slices: int = 0
@@ -40,9 +40,6 @@ class DicomSeries:
         return series
 
     def load_from_zip(self, zip_input: Any):
-        """
-        Load DICOM series from a zip file path, bytes, or file-like object.
-        """
         if isinstance(zip_input, (str, Path)):
             zf = zipfile.ZipFile(zip_input, 'r')
         elif isinstance(zip_input, bytes):
@@ -52,16 +49,13 @@ class DicomSeries:
 
         raw_slices = []
         for name in zf.namelist():
-            # Skip metadata and non-dicom paths
             if name.startswith('__MACOSX') or name.endswith('/'):
                 continue
             if not (name.lower().endswith('.dcm') or '.' not in Path(name).name):
-                # We can check if it starts with DICM or try to read
                 pass
             
             try:
                 data = zf.read(name)
-                # Parse DICOM
                 dcm = pydicom.dcmread(io.BytesIO(data), force=True)
                 if not hasattr(dcm, 'PixelData'):
                     continue
@@ -72,7 +66,6 @@ class DicomSeries:
         if not raw_slices:
             raise ValueError("No valid DICOM files found in zip archive.")
 
-        # Validate consistent SeriesInstanceUID and dimensions
         first = raw_slices[0]
         self.series_uid = getattr(first, 'SeriesInstanceUID', 'unknown')
         self.study_uid = getattr(first, 'StudyInstanceUID', 'unknown')
@@ -91,7 +84,6 @@ class DicomSeries:
         else:
             N = np.array([0.0, 0.0, 1.0])
 
-        # Validate consistency across all slices
         for idx, d in enumerate(raw_slices):
             uid = getattr(d, 'SeriesInstanceUID', '')
             if uid and self.series_uid and uid != self.series_uid:
@@ -99,7 +91,6 @@ class DicomSeries:
             if int(d.Rows) != self.rows or int(d.Columns) != self.cols:
                 raise ValueError(f"Inconsistent slice dimensions: {d.Rows}x{d.Columns} vs {self.rows}x{self.cols}.")
 
-        # Sort slices by physical position along the slice normal N
         def get_dist_along_normal(d):
             if hasattr(d, 'ImagePositionPatient') and len(d.ImagePositionPatient) >= 3:
                 ipp = np.array([float(x) for x in d.ImagePositionPatient[:3]])
@@ -114,7 +105,6 @@ class DicomSeries:
         self.num_slices = len(raw_slices)
         self.z_positions = [get_dist_along_normal(d) for d in raw_slices]
 
-        # Detect duplicate slice positions or gaps
         if len(self.z_positions) > 1:
             diffs = np.diff(self.z_positions)
             if np.any(np.isclose(diffs, 0.0, atol=1e-3)):
@@ -123,7 +113,6 @@ class DicomSeries:
             if median_spacing > 0 and np.any(diffs > median_spacing * 1.5):
                 print(f"Warning: Potential missing slices detected (expected ~{median_spacing:.2f}mm spacing).")
 
-        # Extract HU pixel volume (num_slices, rows, cols)
         volume = np.zeros((self.num_slices, self.rows, self.cols), dtype=np.int16)
         for i, d in enumerate(raw_slices):
             arr = d.pixel_array.astype(np.float32)
@@ -134,39 +123,20 @@ class DicomSeries:
 
         self.volume_hu = volume
 
-        # Construct 4x4 physical affine matrix in scanner RAS+ convention
-        #
-        # Coordinate Space & Axis Order Mapping:
-        # - In DICOM: ImageOrientationPatient defines:
-        #     X (iop[:3]): unit vector along columns (increasing column index c across a row)
-        #     Y (iop[3:]): unit vector along rows (increasing row index r down a column)
-        #     N = cross(X, Y): unit vector orthogonal to the axial slice plane
-        # - In NIfTI: voxel array is ordered (i, j, k) = (columns, rows, slices) = (416, 350, 180).
-        #     Voxel index i corresponds to DICOM column c (spacing = PixelSpacing[1])
-        #     Voxel index j corresponds to DICOM row r (spacing = PixelSpacing[0])
-        #     Voxel index k corresponds to DICOM slice k (spacing = step between consecutive slices)
-        #
-        # - Column 0 of Affine: maps index i (DICOM columns) to scanner RAS+ coordinates
-        # - Column 1 of Affine: maps index j (DICOM rows) to scanner RAS+ coordinates
-        # - Column 2 of Affine: maps index k (DICOM slices) to scanner RAS+ coordinates
-        # - Column 3 of Affine: physical coordinate of voxel (0, 0, 0) in scanner RAS+
         col_spacing = float(self.pixel_spacing[1])
         row_spacing = float(self.pixel_spacing[0])
         first_ipp = np.array([float(x) for x in getattr(raw_slices[0], 'ImagePositionPatient', [0.0, 0.0, 0.0])[:3]])
 
-        # Determine physical slice step vector in LPS
         if len(raw_slices) > 1:
             second_ipp = np.array([float(x) for x in getattr(raw_slices[1], 'ImagePositionPatient', [0.0, 0.0, 0.0])[:3]])
             step_lps = second_ipp - first_ipp
             step_len = float(np.linalg.norm(step_lps))
             step_dir = step_lps / step_len if step_len > 1e-6 else N
             
-            # Gantry Tilt Detection: Check if slice step vector is collinear with slice normal N
             alignment = float(np.dot(step_dir, N))
             self.gantry_tilt_angle_deg = float(np.degrees(np.arccos(np.clip(abs(alignment), 0.0, 1.0))))
             self.has_gantry_tilt = (self.gantry_tilt_angle_deg > 0.5)
             
-            # Non-uniform Slice Spacing Check
             diffs_array = np.diff(self.z_positions)
             median_step = float(np.median(diffs_array))
             spacing_variance = float(np.max(np.abs(diffs_array - median_step))) if len(diffs_array) > 0 else 0.0
@@ -178,12 +148,9 @@ class DicomSeries:
             self.has_gantry_tilt = False
             self.has_uniform_spacing = True
 
-        # Vectors in DICOM LPS+:
         u_col_lps = X * col_spacing
         u_row_lps = Y * row_spacing
 
-        # Convert DICOM LPS+ to NIfTI RAS+ by flipping X and Y axes:
-        # RAS_x = -LPS_x, RAS_y = -LPS_y, RAS_z = LPS_z
         u_col_ras = np.array([-u_col_lps[0], -u_col_lps[1], u_col_lps[2]])
         u_row_ras = np.array([-u_row_lps[0], -u_row_lps[1], u_row_lps[2]])
         u_slice_ras = np.array([-u_slice_lps[0], -u_slice_lps[1], u_slice_lps[2]])
@@ -211,14 +178,8 @@ class DicomSeries:
         window: float = 400.0,
         level: float = 40.0
     ) -> bytes:
-        """
-        Apply windowing (window width, window level) and return PNG bytes.
-        """
         hu = self.get_slice_hu(slice_idx).astype(np.float32)
         
-        # Window / Level formula:
-        # lower = level - window / 2
-        # upper = level + window / 2
         lower = level - (window / 2.0)
         upper = level + (window / 2.0)
         

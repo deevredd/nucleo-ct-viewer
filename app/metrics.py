@@ -8,10 +8,6 @@ def check_grid_compatibility(
     affine2: Optional[np.ndarray] = None,
     tolerance: float = 1e-3
 ) -> Dict[str, Any]:
-    """
-    Check if two 3D masks are defined on the same spatial grid.
-    Compares array dimensions and affine transformation matrices.
-    """
     shape_match = tuple(shape1) == tuple(shape2)
     
     affine_match = True
@@ -58,17 +54,6 @@ def check_ct_to_mask_compatibility(
     tolerance: float = 1e-3,
     max_displacement_mm: float = 0.5
 ) -> Dict[str, Any]:
-    """
-    Validates physical alignment between reconstructed 3D DICOM CT volume
-    and 3D NIfTI segmentation mask.
-    Rejects direct comparison if:
-    1. Gantry tilt is present (requires 3D shear-correction/resampling).
-    2. Non-uniform slice spacing is present (requires 1D/3D z-resampling).
-    3. Array dimensions differ.
-    4. Affine matrices differ in coefficients beyond numerical tolerance.
-    5. Maximum Euclidean physical displacement across the 8 bounding volume corners
-       exceeds max_displacement_mm (ensuring sub-voxel spatial fidelity everywhere in 3D).
-    """
     rejection_reasons = []
 
     if has_gantry_tilt:
@@ -101,11 +86,6 @@ def check_ct_to_mask_compatibility(
             else:
                 affine_diff_max = float(np.max(np.abs(c_aff - m_aff)))
                 
-                # 8-corner outer boundary 3D physical displacement validation:
-                # By convexity of the affine error vector d(p) = (A_ct - A_mask) p,
-                # evaluating the Euclidean displacement at the 8 extreme outer voxel boundaries
-                # [-0.5, cols - 0.5] x [-0.5, rows - 0.5] x [-0.5, slices - 0.5]
-                # mathematically guarantees that physical displacement nowhere in the entire volume exceeds this bound.
                 corners = np.array([
                     [-0.5, -0.5, -0.5, 1.0],
                     [-0.5, -0.5, ct_num_slices - 0.5, 1.0],
@@ -115,20 +95,18 @@ def check_ct_to_mask_compatibility(
                     [ct_cols - 0.5, -0.5, ct_num_slices - 0.5, 1.0],
                     [ct_cols - 0.5, ct_rows - 0.5, -0.5, 1.0],
                     [ct_cols - 0.5, ct_rows - 0.5, ct_num_slices - 0.5, 1.0],
-                ], dtype=float).T  # shape (4, 8)
+                ], dtype=float).T
                 
                 pts_ct = (c_aff @ corners)[:3, :]
                 pts_mask = (m_aff @ corners)[:3, :]
                 corner_disp_max_mm = float(np.max(np.linalg.norm(pts_ct - pts_mask, axis=0)))
 
-                # 1. Primary check: physical displacement in millimeters
                 if corner_disp_max_mm > max_displacement_mm:
                     affine_match = False
                     rejection_reasons.append(
                         f"Outer boundary physical displacement ({corner_disp_max_mm:.4f} mm) exceeds tolerance ({max_displacement_mm:.4f} mm)"
                     )
                 
-                # 2. Supplementary numerical check: matrix coefficient sanity
                 if affine_diff_max > tolerance:
                     affine_match = False
                     rejection_reasons.append(
@@ -162,11 +140,6 @@ def compute_metrics(
     affine: Optional[np.ndarray] = None,
     spacing_mm: Optional[Tuple[float, float, float]] = (0.708984375, 0.708984375, 1.0)
 ) -> Dict[str, Any]:
-    """
-    Compute Dice Similarity Coefficient (DSC) and volumetric metrics
-    between reference (ground-truth) mask and model prediction mask.
-    Voxel volume is computed from |det(A_3x3)| to support general coordinate frames.
-    """
     ref_bool = (reference_mask > 0)
     model_bool = (model_mask > 0)
 
@@ -190,8 +163,6 @@ def compute_metrics(
         precision = float(intersection) / float(model_voxels) if model_voxels > 0 else 0.0
         recall = float(intersection) / float(ref_voxels) if ref_voxels > 0 else 0.0
 
-    # Voxel volume computation using the affine determinant |det(A_3x3)|
-    # This general formula correctly computes physical voxel volume for arbitrary orientations/shears
     if affine is not None and np.asarray(affine).shape >= (3, 3):
         a = np.asarray(affine, dtype=float)
         voxel_vol_cm3 = abs(float(np.linalg.det(a[:3, :3]))) / 1000.0
@@ -204,7 +175,6 @@ def compute_metrics(
     model_vol_cm3 = round(model_voxels * voxel_vol_cm3, 2)
     inter_vol_cm3 = round(intersection * voxel_vol_cm3, 2)
 
-    # Per-slice metrics along the slice axis (axis 2 for (416, 350, 180) or last axis)
     num_slices = reference_mask.shape[-1]
     slice_metrics: List[Dict[str, Any]] = []
     

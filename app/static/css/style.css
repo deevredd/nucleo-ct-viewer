@@ -43,7 +43,6 @@ body {
   flex-direction: column;
 }
 
-/* App Header */
 .app-header {
   height: 54px;
   background-color: var(--bg-panel);
@@ -119,7 +118,6 @@ body {
   gap: 8px;
 }
 
-/* Buttons */
 .btn {
   display: inline-flex;
   align-items: center;
@@ -175,7 +173,6 @@ body {
   padding: 5px 10px;
 }
 
-/* Error Banner */
 .error-banner {
   background: var(--danger-bg);
   border-bottom: 1px solid var(--danger-border);
@@ -226,7 +223,6 @@ body {
   font-weight: 500;
 }
 
-/* Workspace Layout */
 .app-workspace {
   flex: 1;
   display: grid;
@@ -274,7 +270,6 @@ body {
   text-transform: none;
 }
 
-/* Mask Control Cards */
 .mask-card {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
@@ -339,7 +334,6 @@ body {
   font-family: var(--font-mono);
 }
 
-/* Switch Toggle */
 .switch-container {
   position: relative;
   display: inline-block;
@@ -382,7 +376,6 @@ input:checked + .switch-slider:before {
   transform: translateX(12px);
 }
 
-/* Sliders */
 .slider-group {
   margin-bottom: 12px;
 }
@@ -413,7 +406,6 @@ input:checked + .switch-slider:before {
   cursor: pointer;
 }
 
-/* Presets Grid */
 .preset-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -446,7 +438,6 @@ input:checked + .switch-slider:before {
   font-weight: 600;
 }
 
-/* Jobs Tracker */
 .jobs-list {
   display: flex;
   flex-direction: column;
@@ -516,7 +507,6 @@ input:checked + .switch-slider:before {
   text-overflow: ellipsis;
 }
 
-/* Center Viewport */
 .viewport-container {
   display: flex;
   flex-direction: column;
@@ -544,7 +534,6 @@ input:checked + .switch-slider:before {
   image-rendering: pixelated;
 }
 
-/* HUD elements */
 .hud {
   position: absolute;
   pointer-events: none;
@@ -583,7 +572,6 @@ input:checked + .switch-slider:before {
   background: rgba(17, 24, 39, 0.95);
 }
 
-/* Canvas Loader */
 .canvas-loader {
   position: absolute;
   top: 50%;
@@ -607,7 +595,6 @@ input:checked + .switch-slider:before {
   animation: spin 0.8s linear infinite;
 }
 
-/* Viewport Scrubber Toolbar */
 .viewport-toolbar {
   height: 48px;
   background: var(--bg-panel);
@@ -683,7 +670,6 @@ input:checked + .switch-slider:before {
   outline: none;
 }
 
-/* Right Panel: Metrics & Stats */
 .metric-hero-card {
   background: linear-gradient(145deg, #182234, #121b2a);
   border: 1px solid var(--border-color);
@@ -849,7 +835,6 @@ input:checked + .switch-slider:before {
   color: var(--text-main);
 }
 
-/* Modals */
 .modal-overlay {
   position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;
@@ -1008,7 +993,6 @@ input:checked + .switch-slider:before {
   margin-top: 4px;
 }
 
-/* Animations */
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
@@ -1023,7 +1007,6 @@ input:checked + .switch-slider:before {
   to { transform: scale(1); opacity: 1; }
 }
 
-/* Difference / Error Map & Stress Test Styling */
 .badge-diff {
   background: rgba(168, 85, 247, 0.15);
   color: #c084fc;

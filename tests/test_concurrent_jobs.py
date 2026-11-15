@@ -9,12 +9,10 @@ from app.nifti_loader import NiftiMask
 async def test_concurrent_jobs_do_not_mix_results():
     manager = JobManager()
     
-    # Create 3 concurrent jobs with distinct simulated outcomes
     job1 = manager.create_job(label="Job-Case-001")
     job2 = manager.create_job(label="Job-Case-002")
     job3 = manager.create_job(label="Job-Failing")
 
-    # Mock client 1: returns case-001 with lesions
     client1 = NucleoApiClient("https://api.local", "token1")
     async def mock_upload1(zip_bytes, **kwargs):
         await asyncio.sleep(0.05)
@@ -24,9 +22,8 @@ async def test_concurrent_jobs_do_not_mix_results():
             "structures": [{"name": "lesions", "url": "/v1/cases/case-001/structures/lesions"}]
         }
     async def mock_download_mask1(url):
-        return b"" # dummy mask
+        return b""
 
-    # Mock client 2: returns case-002 with liver and tumors
     client2 = NucleoApiClient("https://api.local", "token2")
     async def mock_upload2(zip_bytes, **kwargs):
         await asyncio.sleep(0.02)
@@ -39,7 +36,6 @@ async def test_concurrent_jobs_do_not_mix_results():
             ]
         }
 
-    # Mock client 3: returns 400 corrupt_zip error
     client3 = NucleoApiClient("https://api.local", "token3")
     async def mock_upload3(zip_bytes, **kwargs):
         await asyncio.sleep(0.01)
@@ -64,26 +60,22 @@ async def test_concurrent_jobs_do_not_mix_results():
         dummy_mask.is_loaded = True
         mock_nifti.return_value = dummy_mask
 
-        # Run all three jobs concurrently
         await asyncio.gather(
             manager.execute_upload_job(job1.id, b"zip1", client1),
             manager.execute_upload_job(job2.id, b"zip2", client2),
             manager.execute_upload_job(job3.id, b"zip3", client3)
         )
 
-    # Verification: Check that results were completely isolated!
     res1 = manager.get_job(job1.id).to_dict()
     res2 = manager.get_job(job2.id).to_dict()
     res3 = manager.get_job(job3.id).to_dict()
 
-    # Job 1 verification
     assert res1["status"] == "completed"
     assert res1["case_id"] == "case-001"
     assert len(res1["structures"]) == 1
     assert res1["structures"][0]["name"] == "lesions"
     assert res1["error"] is None
 
-    # Job 2 verification
     assert res2["status"] == "completed"
     assert res2["case_id"] == "case-002"
     assert len(res2["structures"]) == 2
@@ -93,7 +85,6 @@ async def test_concurrent_jobs_do_not_mix_results():
     assert "lesions" not in structure_names_job2
     assert res2["error"] is None
 
-    # Job 3 verification (failed)
     assert res3["status"] == "failed"
     assert res3["case_id"] is None
     assert len(res3["structures"]) == 0

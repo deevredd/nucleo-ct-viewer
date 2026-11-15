@@ -12,7 +12,7 @@ class Job:
         self.label: str = label
         self.created_at: float = time.time()
         self.updated_at: float = self.created_at
-        self.status: str = "queued"  # queued, uploading, processing, downloading, completed, failed
+        self.status: str = "queued"
         self.progress_message: str = "Job queued"
         self.retry_count: int = 0
         self.retry_wait_s: float = 0.0
@@ -95,7 +95,6 @@ class JobManager:
         return self.jobs.get(job_id)
 
     def list_jobs(self) -> List[Dict[str, Any]]:
-        # Return sorted by created_at descending
         sorted_jobs = sorted(self.jobs.values(), key=lambda j: j.created_at, reverse=True)
         return [j.to_dict() for j in sorted_jobs]
 
@@ -120,7 +119,6 @@ class JobManager:
             elif state == "retrying":
                 job.update_status("retrying", f"Rate limit / capacity reached. Retrying in {backoff:.1f}s (Attempt {attempt})...", attempt, backoff)
 
-        # 1. Upload DICOM series
         job.update_status("uploading", "Sending DICOM series to segmentation service...")
         result = await api_client.upload_segmentation(
             zip_bytes=zip_bytes,
@@ -135,15 +133,13 @@ class JobManager:
         structures_list = result.get("structures", [])
         job.update_status("downloading", f"Processing {len(structures_list)} structure mask(s)...")
 
-        # 2. Download and load each returned structure mask
         loaded_masks: Dict[str, NiftiMask] = {}
-        # Predefined distinct colors for structures
         palette = [
-            (245, 158, 11, 150),   # Amber/Orange
-            (59, 130, 246, 150),   # Blue
-            (236, 72, 153, 150),   # Pink
-            (168, 85, 247, 150),   # Purple
-            (20, 184, 166, 150),   # Teal
+            (245, 158, 11, 150),
+            (59, 130, 246, 150),
+            (236, 72, 153, 150),
+            (168, 85, 247, 150),
+            (20, 184, 166, 150),
         ]
 
         for idx, struct in enumerate(structures_list):
@@ -164,11 +160,9 @@ class JobManager:
                 })
                 return
 
-        # 3. Check grid compatibility and compute Dice with reference mask
         grid_check = None
         metrics = None
 
-        # Specifically identify the lesion structure (do NOT fall back to an arbitrary first mask, e.g. an organ)
         lesion_key = None
         for k in loaded_masks.keys():
             if k.lower() in ("lesions", "lesion", "pan_cancer_lesions", "tumor", "tumour"):
@@ -177,7 +171,6 @@ class JobManager:
         
         model_lesion_mask = loaded_masks.get(lesion_key) if lesion_key else None
 
-        # Validate CT-to-mask physical grid compatibility if CT series is provided
         ct_grid_check = None
         if ct_series and getattr(ct_series, "is_loaded", False) and loaded_masks:
             first_mask = model_lesion_mask or next(iter(loaded_masks.values()))
@@ -202,8 +195,6 @@ class JobManager:
                     affine2=model_lesion_mask.affine
                 )
 
-                # Strict physical rejection: If CT-to-mask physical alignment is invalid
-                # (e.g. gantry tilt or non-uniform slice spacing), reject metric comparison
                 if ct_grid_check and not ct_grid_check["is_compatible"]:
                     grid_check["is_compatible"] = False
                     grid_check["warning"] = f"Physical comparison rejected: {ct_grid_check['message']}"
@@ -223,7 +214,6 @@ class JobManager:
                     "message": "No lesion structure identified in model output; lesion metrics unavailable."
                 }
 
-        # 4. Mark completed
         job.set_completed(
             case_id=case_id,
             structures=structures_list,

@@ -1,8 +1,5 @@
-/**
- * Nucleo OmniLesion CT Viewer - Frontend Client
- */
 
-// Application State
+
 const state = {
   currentSlice: 90,
   totalSlices: 180,
@@ -10,17 +7,17 @@ const state = {
   windowLevel: 40,
   activePreset: "soft_tissue",
   
-  // Overlays
+  
   showRefMask: true,
   refOpacity: 0.55,
   showDiffMap: false,
   
-  // Active job and dynamic structures
+  
   activeJobId: null,
   jobs: [],
-  structureStates: {}, // { [structName]: { visible: true, opacity: 0.55, color: [r,g,b] } }
+  structureStates: {}, 
   
-  // Canvas viewport transform
+  
   zoom: 1.0,
   panX: 0,
   panY: 0,
@@ -28,14 +25,13 @@ const state = {
   lastMouseX: 0,
   lastMouseY: 0,
   
-  // Image cache
-  imageCache: new Map(), // key -> Image
   
-  // Polling timer
+  imageCache: new Map(), 
+  
+  
   pollTimer: null,
 };
 
-// DOM Elements
 const canvas = document.getElementById("ct-canvas");
 const ctx = canvas.getContext("2d");
 const canvasWrapper = document.getElementById("canvas-wrapper");
@@ -45,7 +41,6 @@ const btnPrevSlice = document.getElementById("btn-prev-slice");
 const btnNextSlice = document.getElementById("btn-next-slice");
 const canvasLoader = document.getElementById("canvas-loader");
 
-// HUD Elements
 const hudSliceInfo = document.getElementById("hud-slice-info");
 const hudZPos = document.getElementById("hud-z-pos");
 const hudWL = document.getElementById("hud-wl");
@@ -54,7 +49,6 @@ const hudPixelHU = document.getElementById("hud-pixel-hu");
 const hudCoords = document.getElementById("hud-coords");
 const btnResetZoom = document.getElementById("btn-reset-zoom");
 
-// Overlay Controls
 const toggleRefMask = document.getElementById("toggle-ref-mask");
 const opacityRefMask = document.getElementById("opacity-ref-mask");
 const valRefOpacity = document.getElementById("val-ref-opacity");
@@ -65,7 +59,6 @@ const diffLegendContainer = document.getElementById("diff-legend-container");
 const btnStressCorrupt = document.getElementById("btn-stress-corrupt");
 const btnStressConcurrent = document.getElementById("btn-stress-concurrent");
 
-// Windowing Controls
 const sliderWindowWidth = document.getElementById("slider-window-width");
 const sliderWindowLevel = document.getElementById("slider-window-level");
 const valWindowWidth = document.getElementById("val-window-width");
@@ -73,7 +66,6 @@ const valWindowLevel = document.getElementById("val-window-level");
 const presetButtons = document.querySelectorAll(".preset-btn");
 const activePresetLabel = document.getElementById("active-preset-label");
 
-// Metrics Elements
 const metricDiceVal = document.getElementById("metric-dice-val");
 const metricDicePct = document.getElementById("metric-dice-pct");
 const metricDiceBar = document.getElementById("metric-dice-bar");
@@ -90,10 +82,8 @@ const statRecall = document.getElementById("stat-recall");
 const statJaccard = document.getElementById("stat-jaccard");
 const statFp = document.getElementById("stat-fp");
 
-// Jobs List
 const jobsList = document.getElementById("jobs-list");
 
-// Error Banner
 const errorBanner = document.getElementById("error-banner");
 const bannerTitle = document.getElementById("banner-title");
 const bannerDesc = document.getElementById("banner-desc");
@@ -101,7 +91,6 @@ const bannerRetryTimer = document.getElementById("banner-retry-timer");
 const retrySeconds = document.getElementById("retry-seconds");
 const bannerDismiss = document.getElementById("banner-dismiss");
 
-// Modals
 const uploadModal = document.getElementById("upload-modal");
 const btnUploadTrigger = document.getElementById("btn-upload-trigger");
 const btnDemoCached = document.getElementById("btn-demo-cached");
@@ -124,7 +113,6 @@ const cfgToken = document.getElementById("cfg-token");
 
 let selectedCustomFile = null;
 
-// Initialize App
 async function initApp() {
   setupEventListeners();
   await loadCaseInfo();
@@ -133,7 +121,6 @@ async function initApp() {
   renderCurrentSlice();
 }
 
-// Fetch Case Metadata
 async function loadCaseInfo() {
   try {
     const res = await fetch("/api/case/info");
@@ -152,7 +139,6 @@ async function loadCaseInfo() {
   }
 }
 
-// Fetch API Config
 async function fetchConfig() {
   try {
     const res = await fetch("/api/config");
@@ -168,7 +154,6 @@ async function fetchConfig() {
   }
 }
 
-// Render Slice on Canvas
 let renderRequestPending = false;
 async function renderCurrentSlice() {
   if (renderRequestPending) return;
@@ -179,21 +164,21 @@ async function renderCurrentSlice() {
     const w = state.windowWidth;
     const l = state.windowLevel;
 
-    // 1. Fetch CT slice image
+    
     const ctUrl = `/api/case/slice/${sliceIdx}?window=${w}&level=${l}`;
     const ctImg = await loadImage(ctUrl);
 
-    // Update canvas size if needed
+    
     if (canvas.width !== ctImg.width || canvas.height !== ctImg.height) {
       canvas.width = ctImg.width;
       canvas.height = ctImg.height;
     }
 
-    // Clear canvas
+    
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.drawImage(ctImg, 0, 0);
 
-    // If Error / Difference Map mode is active, render combined TP/FP/FN analysis
+    
     if (state.showDiffMap && state.activeJobId) {
       const diffUrl = `/api/jobs/${state.activeJobId}/diff_slice/${sliceIdx}?alpha=160`;
       try {
@@ -201,7 +186,7 @@ async function renderCurrentSlice() {
         ctx.drawImage(diffImg, 0, 0);
       } catch (e) {}
     } else {
-      // 2. Overlay Reference Mask if enabled
+      
       if (state.showRefMask) {
         const alphaInt = Math.round(state.refOpacity * 255);
         const refUrl = `/api/reference/slice/${sliceIdx}?r=16&g=185&b=129&a=${alphaInt}`;
@@ -209,11 +194,11 @@ async function renderCurrentSlice() {
           const refImg = await loadImage(refUrl);
           ctx.drawImage(refImg, 0, 0);
         } catch (e) {
-          // Mask slice might be empty
+          
         }
       }
 
-      // 3. Overlay Model Structures for active job
+      
       if (state.activeJobId) {
         const activeJob = state.jobs.find(j => j.id === state.activeJobId);
         if (activeJob && activeJob.structures) {
@@ -241,7 +226,6 @@ async function renderCurrentSlice() {
   }
 }
 
-// Image Loader with Map cache
 function loadImage(url) {
   if (state.imageCache.has(url)) {
     return Promise.resolve(state.imageCache.get(url));
@@ -250,7 +234,7 @@ function loadImage(url) {
     const img = new Image();
     img.crossOrigin = "anonymous";
     img.onload = () => {
-      // Keep cache size bounded
+      
       if (state.imageCache.size > 400) {
         const firstKey = state.imageCache.keys().next().value;
         state.imageCache.delete(firstKey);
@@ -263,7 +247,6 @@ function loadImage(url) {
   });
 }
 
-// Update HUD Labels
 function updateHudText() {
   hudSliceInfo.textContent = `Slice: ${state.currentSlice + 1} / ${state.totalSlices}`;
   const z = (359.9 + state.currentSlice * 1.0).toFixed(1);
@@ -275,13 +258,11 @@ function updateHudText() {
   sliceInput.value = state.currentSlice + 1;
 }
 
-// Update Viewport Transform (Zoom & Pan)
 function updateCanvasTransform() {
   canvas.style.transform = `translate(${state.panX}px, ${state.panY}px) scale(${state.zoom})`;
   hudZoom.textContent = `Zoom: ${Math.round(state.zoom * 100)}%`;
 }
 
-// Jobs Management
 async function refreshJobs() {
   try {
     const res = await fetch("/api/jobs");
@@ -289,10 +270,10 @@ async function refreshJobs() {
     const jobs = await res.json();
     state.jobs = jobs;
 
-    // Render jobs list
+    
     renderJobsList(jobs);
 
-    // Set active job if none selected
+    
     if (!state.activeJobId && jobs.length > 0) {
       setActiveJob(jobs[0].id);
     } else if (state.activeJobId) {
@@ -302,7 +283,7 @@ async function refreshJobs() {
       }
     }
 
-    // Check if any job is still in progress -> keep polling
+    
     const inProgress = jobs.some(j => ["queued", "uploading", "retrying", "downloading"].includes(j.status));
     if (inProgress && !state.pollTimer) {
       state.pollTimer = setInterval(refreshJobs, 1500);
@@ -345,13 +326,13 @@ function setActiveJob(jobId) {
   const job = state.jobs.find(j => j.id === jobId);
   if (!job) return;
 
-  // Render dynamic model structures toggles
+  
   renderModelStructureControls(job);
 
-  // Update metrics panel
+  
   updateMetricsDisplay(job);
 
-  // Check if job failed -> show plain error banner
+  
   if (job.status === "failed" && job.error) {
     showError(
       `Upload Failed: ${job.error.code || "Error"}`,
@@ -423,7 +404,7 @@ function renderModelStructureControls(job) {
 
     modelStructuresContainer.appendChild(card);
 
-    // Event listeners
+    
     const toggle = card.querySelector(`#toggle-${sName}`);
     const opacity = card.querySelector(`#opacity-${sName}`);
     const opacityVal = card.querySelector(`#val-${sName}-opacity`);
@@ -485,11 +466,10 @@ function updateMetricsDisplay(job) {
   statJaccard.textContent = `${m.jaccard !== undefined ? (m.jaccard * 100).toFixed(1) : 86.6}%`;
   statFp.textContent = `${((m.model_volume_cm3 || 386.9) - (m.intersection_volume_cm3 || 364.7)).toFixed(1)} cm³`;
 
-  // Draw slice lesion chart
+  
   drawSliceDistributionChart(m.slice_metrics);
 }
 
-// Slice Distribution Chart Canvas
 function drawSliceDistributionChart(sliceMetrics) {
   const chartCanvas = document.getElementById("slice-chart");
   if (!chartCanvas) return;
@@ -500,7 +480,7 @@ function drawSliceDistributionChart(sliceMetrics) {
   cctx.clearRect(0, 0, w, h);
 
   if (!sliceMetrics || sliceMetrics.length === 0) {
-    // Generate synthetic realistic distribution between slice 34 and 164
+    
     sliceMetrics = [];
     for (let s = 0; s < 180; s++) {
       let r = 0, m = 0;
@@ -518,14 +498,14 @@ function drawSliceDistributionChart(sliceMetrics) {
   const numSlices = sliceMetrics.length;
   const maxV = Math.max(...sliceMetrics.map(d => Math.max(d.ref_voxels || 0, d.model_voxels || 0)), 1);
 
-  // Draw background grid lines
+  
   cctx.strokeStyle = "rgba(255, 255, 255, 0.05)";
   cctx.lineWidth = 1;
   cctx.beginPath();
   cctx.moveTo(0, h * 0.5); cctx.lineTo(w, h * 0.5);
   cctx.stroke();
 
-  // Draw reference bars (Green)
+  
   const barW = Math.max(1, w / numSlices);
   for (let i = 0; i < numSlices; i++) {
     const d = sliceMetrics[i];
@@ -542,7 +522,7 @@ function drawSliceDistributionChart(sliceMetrics) {
     }
   }
 
-  // Draw current slice indicator line (Cyan)
+  
   const currX = (state.currentSlice / numSlices) * w;
   cctx.strokeStyle = "#06b6d4";
   cctx.lineWidth = 2;
@@ -552,7 +532,6 @@ function drawSliceDistributionChart(sliceMetrics) {
   cctx.stroke();
 }
 
-// Error Banner Functions
 let retryInterval = null;
 function showError(title, desc, retrySecondsVal = 0) {
   bannerTitle.textContent = title;
@@ -584,9 +563,8 @@ function hideError() {
   if (retryInterval) clearInterval(retryInterval);
 }
 
-// Setup Event Listeners
 function setupEventListeners() {
-  // Slice Navigation Controls
+  
   sliceSlider.addEventListener("input", (e) => {
     state.currentSlice = parseInt(e.target.value);
     renderCurrentSlice();
@@ -614,7 +592,7 @@ function setupEventListeners() {
     }
   });
 
-  // Keyboard navigation
+  
   window.addEventListener("keydown", (e) => {
     if (e.target.tagName === "INPUT") return;
     if (e.key === "ArrowDown" || e.key === "j") {
@@ -630,16 +608,16 @@ function setupEventListeners() {
     }
   });
 
-  // Mouse wheel on canvas -> slice scroll or zoom
+  
   canvasWrapper.addEventListener("wheel", (e) => {
     e.preventDefault();
     if (e.ctrlKey || e.metaKey) {
-      // Zoom
+      
       const delta = e.deltaY > 0 ? 0.9 : 1.1;
       state.zoom = Math.max(0.5, Math.min(5.0, state.zoom * delta));
       updateCanvasTransform();
     } else {
-      // Slice scroll
+      
       const delta = e.deltaY > 0 ? 1 : -1;
       const nextSlice = state.currentSlice + delta;
       if (nextSlice >= 0 && nextSlice < state.totalSlices) {
@@ -649,7 +627,7 @@ function setupEventListeners() {
     }
   }, { passive: false });
 
-  // Pan interaction
+  
   canvasWrapper.addEventListener("mousedown", (e) => {
     if (e.button === 0) {
       state.isPanning = true;
@@ -683,7 +661,7 @@ function setupEventListeners() {
     updateCanvasTransform();
   });
 
-  // Cursor HU readout on mousemove over canvas
+  
   let huQueryTimer = null;
   canvas.addEventListener("mousemove", (e) => {
     const rect = canvas.getBoundingClientRect();
@@ -722,7 +700,7 @@ function setupEventListeners() {
     hudCoords.textContent = "X: --, Y: --";
   });
 
-  // Reference Mask Toggles
+  
   toggleRefMask.addEventListener("change", (e) => {
     state.showRefMask = e.target.checked;
     renderCurrentSlice();
@@ -734,7 +712,7 @@ function setupEventListeners() {
     renderCurrentSlice();
   });
 
-  // Difference / Error Map Toggle
+  
   if (toggleDiffMap) {
     toggleDiffMap.addEventListener("change", (e) => {
       state.showDiffMap = e.target.checked;
@@ -745,7 +723,7 @@ function setupEventListeners() {
     });
   }
 
-  // Window / Level Sliders
+  
   sliderWindowWidth.addEventListener("input", (e) => {
     state.windowWidth = parseInt(e.target.value);
     valWindowWidth.textContent = state.windowWidth;
@@ -762,7 +740,7 @@ function setupEventListeners() {
     renderCurrentSlice();
   });
 
-  // Window Presets
+  
   const presets = {
     soft_tissue: { w: 400, l: 40, name: "Soft Tissue" },
     liver: { w: 150, l: 30, name: "Liver" },
@@ -791,17 +769,17 @@ function setupEventListeners() {
     });
   });
 
-  // Banner dismiss
+  
   bannerDismiss.addEventListener("click", hideError);
 
-  // Upload Modal triggers
+  
   btnUploadTrigger.addEventListener("click", () => {
     uploadModal.classList.remove("hidden");
   });
   modalUploadClose.addEventListener("click", () => uploadModal.classList.add("hidden"));
   modalUploadCancel.addEventListener("click", () => uploadModal.classList.add("hidden"));
 
-  // Quick Demo Trigger
+  
   btnDemoCached.addEventListener("click", async () => {
     try {
       const res = await fetch("/api/segmentations/demo-cached", { method: "POST" });
@@ -814,7 +792,7 @@ function setupEventListeners() {
     }
   });
 
-  // Upload Radio Selection
+  
   radioUploadDefault.addEventListener("change", () => {
     dropZone.classList.add("hidden");
   });
@@ -830,7 +808,7 @@ function setupEventListeners() {
     }
   });
 
-  // Submit Upload
+  
   modalUploadSubmit.addEventListener("click", async () => {
     uploadModal.classList.add("hidden");
     const useDefault = radioUploadDefault.checked;
@@ -865,7 +843,7 @@ function setupEventListeners() {
     }
   });
 
-  // Stress Test 1: Simulate Corrupt Upload
+  
   if (btnStressCorrupt) {
     btnStressCorrupt.addEventListener("click", async () => {
       uploadModal.classList.add("hidden");
@@ -888,7 +866,7 @@ function setupEventListeners() {
     });
   }
 
-  // Stress Test 2: Simulate Concurrent Uploads
+  
   if (btnStressConcurrent) {
     btnStressConcurrent.addEventListener("click", async () => {
       uploadModal.classList.add("hidden");
@@ -912,7 +890,7 @@ function setupEventListeners() {
     });
   }
 
-  // Clear Jobs History
+  
   const btnClearJobs = document.getElementById("btn-clear-jobs");
   if (btnClearJobs) {
     btnClearJobs.addEventListener("click", async () => {
@@ -926,7 +904,7 @@ function setupEventListeners() {
     });
   }
 
-  // Settings Modal
+  
   btnOpenSettings.addEventListener("click", () => {
     settingsModal.classList.remove("hidden");
   });

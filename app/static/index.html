@@ -11,7 +11,7 @@
 </head>
 <body>
   <div class="app-container">
-    <!-- Top Header -->
+    
     <header class="app-header">
       <div class="header-left">
         <div class="logo-mark">
@@ -50,7 +50,7 @@
       </div>
     </header>
 
-    <!-- Error / Status Notification Banner -->
+    
     <div id="error-banner" class="error-banner hidden">
       <div class="banner-icon">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
@@ -65,9 +65,9 @@
       </div>
     </div>
 
-    <!-- Main Workspace -->
+    
     <div class="app-workspace">
-      <!-- Left Panel: Controls, Presets, Overlays -->
+      
       <aside class="panel left-panel">
         <div class="panel-section">
           <div class="section-title">
@@ -75,7 +75,7 @@
             <span class="subtext">Compare masks</span>
           </div>
 
-          <!-- Reference Mask Control -->
+          
           <div class="mask-card reference-card">
             <div class="card-header">
               <label class="switch-container">
@@ -100,7 +100,7 @@
             </div>
           </div>
 
-          <!-- Difference / Error Map Card -->
+          
           <div class="mask-card diff-card">
             <div class="card-header">
               <label class="switch-container">
@@ -121,20 +121,20 @@
             </div>
           </div>
 
-          <!-- Dynamic Model Structures Container -->
+          
           <div id="model-structures-container">
-            <!-- Dynamically populated per structure -->
+            
           </div>
         </div>
 
-        <!-- Window / Level Controls -->
+        
         <div class="panel-section">
           <div class="section-title">
             <span>CT Windowing</span>
             <span class="subtext" id="active-preset-label">Soft Tissue</span>
           </div>
 
-          <!-- Presets Grid -->
+          
           <div class="preset-grid">
             <button class="preset-btn active" data-preset="soft_tissue">Soft Tissue</button>
             <button class="preset-btn" data-preset="liver">Liver</button>
@@ -144,7 +144,7 @@
             <button class="preset-btn" data-preset="brain">Brain</button>
           </div>
 
-          <!-- Custom Window / Level Sliders -->
+          
           <div class="slider-group">
             <div class="slider-header">
               <span>Window Width (W)</span>
@@ -162,25 +162,25 @@
           </div>
         </div>
 
-        <!-- Jobs & Concurrency Tracker -->
+        
         <div class="panel-section jobs-section">
           <div class="section-title">
             <span>Upload Jobs</span>
             <button class="btn btn-ghost btn-xs" id="btn-clear-jobs" title="Clear test history" style="font-size:10px;padding:2px 6px;">Clear</button>
           </div>
           <div class="jobs-list" id="jobs-list">
-            <!-- Job items rendered dynamically -->
+            
           </div>
         </div>
       </aside>
 
-      <!-- Center: Axial Medical Viewport -->
+      
       <main class="viewport-container" id="viewport-container">
-        <!-- Canvas Viewer -->
+        
         <div class="canvas-wrapper" id="canvas-wrapper">
           <canvas id="ct-canvas"></canvas>
           
-          <!-- Viewport HUD Overlays -->
+          
           <div class="hud hud-top-left">
             <div class="hud-item hud-strong" id="hud-patient">TAKEHOME^CASE01 &bull; CASE01</div>
             <div class="hud-item" id="hud-modality">Modality: CT (Axial)</div>
@@ -203,13 +203,13 @@
             <div class="hud-item" id="hud-coords">X: --, Y: --</div>
           </div>
 
-          <!-- Loading Spinner on Slice Navigation -->
+          
           <div class="canvas-loader hidden" id="canvas-loader">
             <div class="spinner"></div>
           </div>
         </div>
 
-        <!-- Slice Navigation Scrubber Toolbar -->
+        
         <div class="viewport-toolbar">
           <button class="toolbar-btn" id="btn-prev-slice" title="Previous Slice (Down Arrow)">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
@@ -231,7 +231,7 @@
         </div>
       </main>
 
-      <!-- Right Panel: Quantitative Metrics & Analysis -->
+      
       <aside class="panel right-panel">
         <div class="panel-section">
           <div class="section-title">
@@ -239,7 +239,7 @@
             <span class="subtext">Against reference</span>
           </div>
 
-          <!-- Big Dice Metric Card -->
+          
           <div class="metric-hero-card">
             <div class="hero-top">
               <span class="hero-label">Dice Similarity Coefficient</span>
@@ -254,7 +254,7 @@
             </div>
           </div>
 
-          <!-- Grid Compatibility Card -->
+          
           <div class="info-card" id="grid-check-card">
             <div class="info-card-header">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
@@ -267,7 +267,7 @@
             </div>
           </div>
 
-          <!-- Volumetric Comparison Table -->
+          
           <div class="volumetric-table">
             <div class="table-row table-head">
               <span>Structure</span>
@@ -291,7 +291,7 @@
             </div>
           </div>
 
-          <!-- Additional Metrics -->
+          
           <div class="metrics-grid">
             <div class="metric-mini-card">
               <span class="mini-label">Precision (PPV)</span>
@@ -312,7 +312,7 @@
           </div>
         </div>
 
-        <!-- Lesion Slice Distribution Chart -->
+        
         <div class="panel-section">
           <div class="section-title">
             <span>Lesion Extent Across Slices</span>
@@ -326,7 +326,7 @@
     </div>
   </div>
 
-  <!-- Upload Modal / Dialog -->
+  
   <div class="modal-overlay hidden" id="upload-modal">
     <div class="modal-card">
       <div class="modal-header">
@@ -381,7 +381,7 @@
     </div>
   </div>
 
-  <!-- Settings Modal -->
+  
   <div class="modal-overlay hidden" id="settings-modal">
     <div class="modal-card">
       <div class="modal-header">

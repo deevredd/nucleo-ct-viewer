@@ -167,12 +167,6 @@ If allotted additional time, the following clinical and technical capabilities w
 
 ---
 
-## Note on AI Coding Tools
-
-This solution was developed using Antigravity AI coding tools for rapid scaffolding, exploration, and test generation. All mathematical formulations (DICOM LPS+ to NIfTI RAS+ affine transformation, vector projection $\mathbf{IPP} \cdot \mathbf{N}$, voxel volume calculations), architecture, error-branching logic, and test suites have been designed, reviewed, and verified from first principles.
-
----
-
 ## Attribution
 
 The CT scan and reference lesion mask are derived from:

@@ -63,13 +63,10 @@ def test_compute_dice_zero_overlap():
 def test_compute_dice_partial_overlap():
     ref = np.zeros((20, 20, 10), dtype=np.uint8)
     model = np.zeros((20, 20, 10), dtype=np.uint8)
-    # Ref has 100 voxels (0..9, 0..9)
     ref[0:10, 0:10, 0:1] = 1
-    # Model has 100 voxels (0..9, 5..14)
     model[0:10, 5:15, 0:1] = 1
 
     res = compute_metrics(ref, model)
-    # intersection = 50, total = 200, Dice = 2 * 50 / 200 = 0.5
     assert res["dice"] == 0.5
     assert res["intersection_voxels"] == 50
     assert res["ref_voxels"] == 100
@@ -87,7 +84,6 @@ def test_compute_dice_both_empty():
     assert res["model_voxels"] == 0
 
 def test_check_ct_to_mask_compatibility():
-    # CT: 180 slices, 350 rows, 416 cols -> NIfTI expected shape: (416, 350, 180)
     ct_affine = np.diag([-0.70898438, -0.70898438, 1.0, 1.0])
     mask_shape = (416, 350, 180)
     mask_affine = ct_affine.copy()
@@ -136,11 +132,9 @@ def test_check_ct_to_mask_compatibility_rejects_nonuniform_spacing():
     assert "Non-uniform slice spacing" in res["message"]
 
 def test_compute_metrics_affine_determinant_volume():
-    ref = np.ones((10, 10, 10), dtype=np.uint8)  # 1000 voxels
+    ref = np.ones((10, 10, 10), dtype=np.uint8)
     model = np.ones((10, 10, 10), dtype=np.uint8)
     
-    # Affine with diagonal [2.0, 2.0, 2.0, 1.0] -> |det(A)| = 8.0 mm3/voxel = 0.008 cm3/voxel
-    # 1000 voxels * 0.008 cm3 = 8.0 cm3
     affine = np.diag([2.0, 2.0, 2.0, 1.0])
     res = compute_metrics(ref, model, affine=affine)
     assert res["ref_volume_cm3"] == 8.0
@@ -151,9 +145,8 @@ def test_check_ct_to_mask_compatibility_rejects_corner_displacement():
     ct_affine = np.diag([-0.70898438, -0.70898438, 1.0, 1.0])
     mask_shape = (416, 350, 180)
     
-    # An affine with 1.0 mm translation shift along X
     shifted_affine = ct_affine.copy()
-    shifted_affine[0, 3] += 1.0  # 1.0 mm shift
+    shifted_affine[0, 3] += 1.0
 
     res = check_ct_to_mask_compatibility(
         ct_num_slices=180,
@@ -162,8 +155,8 @@ def test_check_ct_to_mask_compatibility_rejects_corner_displacement():
         ct_affine_ras=ct_affine,
         mask_shape=mask_shape,
         mask_affine=shifted_affine,
-        tolerance=2.0,             # artificially permissive matrix tolerance
-        max_displacement_mm=0.5    # strict physical corner displacement threshold
+        tolerance=2.0,
+        max_displacement_mm=0.5
     )
     assert res["is_compatible"] is False
     assert res["affine_match"] is False

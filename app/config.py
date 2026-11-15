@@ -2,11 +2,9 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 
-# Base paths
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DATA_DIR = PROJECT_ROOT / "data"
 
-# Load .env if present
 load_dotenv(PROJECT_ROOT / ".env")
 
 class Settings:
