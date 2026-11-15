@@ -58,9 +58,11 @@ HOST=127.0.0.1
 ## How Dice Similarity Coefficient (DSC) Was Computed
 
 ### 1. Spatial Grid Compatibility Verification
-Before computing DSC, the app strictly verifies whether the returned model mask and the ground-truth reference mask reside on the same spatial grid:
+Before computing DSC or displaying overlays, the app strictly verifies whether the CT volume and segmentation masks reside on the same physical Cartesian grid:
 - **Shape Check:** Ensures identical array dimensions (`(416, 350, 180)`).
-- **Affine & Spacing Check:** Validates that the 4×4 affine transformation matrix (mapping voxel `(i, j, k, 1)` to scanner coordinates in LPS/RAS+ mm) matches within tolerance (`atol=1e-3`).
+- **Physical Boundary Displacement (Convex Guarantee):** Evaluates physical coordinates at the 8 outer voxel boundaries $[-0.5, N_x-0.5] \times [-0.5, N_y-0.5] \times [-0.5, N_z-0.5]$ through both affines. Rejects direct comparison if maximum Euclidean displacement exceeds $\le 0.50\text{ mm}$ (sub-voxel tolerance).
+- **Numerical Affine Check:** Verifies dimensionless direction and scale coefficients match within numerical tolerance (`atol=1e-3`).
+- **Acquisition Geometry Check:** Detects gantry tilt ($>0.50^\circ$) and non-uniform slice spacing ($>5.0\%$ variation), rejecting direct Cartesian comparison for non-orthogonal or irregular acquisitions until resampled.
 
 ### 2. DSC Formula
 For binary masks $X$ (Model prediction) and $Y$ (Reference ground-truth):
@@ -131,7 +133,7 @@ Run the focused test suite using pytest:
 ./venv/bin/pytest -v
 ```
 
-The 32 tests cover:
+The 33 tests cover:
 - API response normalization supporting both dictionary (`{"lesions": url}`) and list (`[{"name": "lesions", "url": ...}]`) structure formats.
 - Disabling automatic retries for ambiguous POST timeouts to prevent duplicate backend jobs.
 - Target-specific lesion identification for Dice metrics (preventing erroneous organ mask fallbacks).
