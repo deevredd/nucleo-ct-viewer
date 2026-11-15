@@ -146,3 +146,26 @@ def test_compute_metrics_affine_determinant_volume():
     assert res["ref_volume_cm3"] == 8.0
     assert res["model_volume_cm3"] == 8.0
     assert res["intersection_volume_cm3"] == 8.0
+
+def test_check_ct_to_mask_compatibility_rejects_corner_displacement():
+    ct_affine = np.diag([-0.70898438, -0.70898438, 1.0, 1.0])
+    mask_shape = (416, 350, 180)
+    
+    # An affine with 1.0 mm translation shift along X
+    shifted_affine = ct_affine.copy()
+    shifted_affine[0, 3] += 1.0  # 1.0 mm shift
+
+    res = check_ct_to_mask_compatibility(
+        ct_num_slices=180,
+        ct_rows=350,
+        ct_cols=416,
+        ct_affine_ras=ct_affine,
+        mask_shape=mask_shape,
+        mask_affine=shifted_affine,
+        tolerance=2.0,             # artificially permissive matrix tolerance
+        max_displacement_mm=0.5    # strict physical corner displacement threshold
+    )
+    assert res["is_compatible"] is False
+    assert res["affine_match"] is False
+    assert "Corner physical displacement" in res["message"]
+    assert res["corner_disp_max_mm"] >= 1.0

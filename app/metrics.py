@@ -55,7 +55,8 @@ def check_ct_to_mask_compatibility(
     has_gantry_tilt: bool = False,
     has_uniform_spacing: bool = True,
     gantry_tilt_angle_deg: float = 0.0,
-    tolerance: float = 1e-3
+    tolerance: float = 1e-3,
+    max_displacement_mm: float = 0.5
 ) -> Dict[str, Any]:
     """
     Validates physical alignment between reconstructed 3D DICOM CT volume
@@ -63,7 +64,10 @@ def check_ct_to_mask_compatibility(
     Rejects direct comparison if:
     1. Gantry tilt is present (requires 3D shear-correction/resampling).
     2. Non-uniform slice spacing is present (requires 1D/3D z-resampling).
-    3. Array dimensions or affine matrices differ beyond tolerance.
+    3. Array dimensions differ.
+    4. Affine matrices differ in coefficients beyond numerical tolerance.
+    5. Maximum Euclidean physical displacement across the 8 bounding volume corners
+       exceeds max_displacement_mm (ensuring sub-voxel spatial fidelity everywhere in 3D).
     """
     rejection_reasons = []
 
@@ -86,14 +90,40 @@ def check_ct_to_mask_compatibility(
 
     affine_match = True
     affine_diff_max = 0.0
+    corner_disp_max_mm = 0.0
     if ct_affine_ras is not None and mask_affine is not None:
         c_aff = np.asarray(ct_affine_ras, dtype=float)
         m_aff = np.asarray(mask_affine, dtype=float)
         if c_aff.shape == (4, 4) and m_aff.shape == (4, 4):
             affine_diff_max = float(np.max(np.abs(c_aff - m_aff)))
-            affine_match = np.allclose(c_aff, m_aff, atol=tolerance)
+            
+            # 8-corner 3D physical displacement validation:
+            # Evaluate bounding corners of voxel grid [0, cols-1] x [0, rows-1] x [0, slices-1]
+            corners = np.array([
+                [0, 0, 0, 1.0],
+                [0, 0, ct_num_slices - 1, 1.0],
+                [0, ct_rows - 1, 0, 1.0],
+                [0, ct_rows - 1, ct_num_slices - 1, 1.0],
+                [ct_cols - 1, 0, 0, 1.0],
+                [ct_cols - 1, 0, ct_num_slices - 1, 1.0],
+                [ct_cols - 1, ct_rows - 1, 0, 1.0],
+                [ct_cols - 1, ct_rows - 1, ct_num_slices - 1, 1.0],
+            ], dtype=float).T  # shape (4, 8)
+            
+            pts_ct = (c_aff @ corners)[:3, :]
+            pts_mask = (m_aff @ corners)[:3, :]
+            corner_disp_max_mm = float(np.max(np.linalg.norm(pts_ct - pts_mask, axis=0)))
+
+            affine_match = (affine_diff_max <= tolerance) and (corner_disp_max_mm <= max_displacement_mm)
             if not affine_match:
-                rejection_reasons.append(f"Affine mismatch: max diff {affine_diff_max:.5f} mm exceeds tolerance")
+                if corner_disp_max_mm > max_displacement_mm:
+                    rejection_reasons.append(
+                        f"Corner physical displacement ({corner_disp_max_mm:.4f} mm) exceeds tolerance ({max_displacement_mm:.4f} mm)"
+                    )
+                else:
+                    rejection_reasons.append(
+                        f"Affine coefficient mismatch: max diff {affine_diff_max:.5f} exceeds tolerance {tolerance:.5f}"
+                    )
         else:
             affine_match = False
             rejection_reasons.append("Invalid affine matrix dimensions (expected 4x4)")
@@ -109,7 +139,11 @@ def check_ct_to_mask_compatibility(
         "ct_expected_shape": list(expected_nifti_shape),
         "mask_shape": list(mask_shape),
         "affine_diff_max": affine_diff_max,
-        "message": "CT and mask physically aligned on uniform orthogonal Cartesian grid" if is_compatible else "; ".join(rejection_reasons)
+        "corner_disp_max_mm": corner_disp_max_mm,
+        "message": (
+            f"CT and mask physically aligned on uniform orthogonal Cartesian grid "
+            f"(max corner displacement: {corner_disp_max_mm:.2e} mm)"
+        ) if is_compatible else "; ".join(rejection_reasons)
     }
 
 def compute_metrics(
